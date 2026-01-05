@@ -18,10 +18,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
     {
       id: 'molarity',
       title: '摩尔浓度计算器',
-      desc: '快速计算溶液配制所需的质量或体积。支持常用试剂预设。',
+      desc: '快速计算溶液配制所需的质量或体积。支持常用试剂预设与稀释计算。',
       icon: <FlaskConical size={32} className="text-purple-500" />,
       color: 'border-purple-200 hover:border-purple-500',
-      active: false
+      active: true
     },
     {
       id: 'western',
