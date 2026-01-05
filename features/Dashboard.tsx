@@ -26,10 +26,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
     {
       id: 'western',
       title: 'Western Blot 灰度分析',
-      desc: '上传条带图片，自动分析相对灰度值并进行归一化处理。',
+      desc: '上传条带图片，手动框选目标蛋白与内参蛋白，自动计算相对灰度值并归一化。',
       icon: <Activity size={32} className="text-emerald-500" />,
       color: 'border-emerald-200 hover:border-emerald-500',
-      active: false
+      active: true
     },
   ];
 
