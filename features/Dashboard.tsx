@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Dna, FlaskConical, Calculator } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -31,6 +31,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       color: 'border-emerald-200 hover:border-emerald-500',
       active: true
     },
+    {
+      id: 'cell_plating',
+      title: '细胞铺板计算器',
+      desc: '根据细胞计数结果，快速计算不同规格培养板（6孔、24孔、96孔等）的铺板体积与密度。',
+      icon: <Grid3x3 size={32} className="text-pink-500" />,
+      color: 'border-pink-200 hover:border-pink-500',
+      active: false
+    },
+    {
+      id: 'bca',
+      title: 'BCA 蛋白定量分析',
+      desc: '输入标准品与样品的 OD 值，自动拟合标准曲线（线性/多项式），计算样品蛋白浓度。',
+      icon: <Pipette size={32} className="text-orange-500" />,
+      color: 'border-orange-200 hover:border-orange-500',
+      active: false
+    },
   ];
 
   return (
@@ -49,7 +65,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
               relative bg-white rounded-2xl p-6 border-2 transition-all duration-300 shadow-sm
               ${tool.active 
                 ? `${tool.color} cursor-pointer hover:shadow-lg hover:-translate-y-1` 
-                : 'border-slate-100 opacity-60 cursor-not-allowed grayscale-[0.5]'}
+                : 'border-slate-100 opacity-70 cursor-not-allowed grayscale-[0.1]'}
             `}
           >
             <div className="flex items-start justify-between mb-4">
@@ -57,7 +73,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
                 {tool.icon}
               </div>
               {!tool.active && (
-                <span className="px-2 py-1 bg-slate-100 text-slate-400 text-xs font-medium rounded-full">
+                <span className="px-2 py-1 bg-slate-100 text-slate-400 text-xs font-medium rounded-full border border-slate-200">
                   开发中
                 </span>
               )}
