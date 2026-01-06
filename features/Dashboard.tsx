@@ -32,6 +32,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       active: true
     },
     {
+      id: 'bca',
+      title: 'ELISA和BCA 蛋白定量分析',
+      desc: '输入标准品与样品的 OD 值，自动拟合标准曲线（线性/多项式），计算样品蛋白浓度。',
+      icon: <Pipette size={32} className="text-orange-500" />,
+      color: 'border-orange-200 hover:border-orange-500',
+      active: true
+    },
+    {
       id: 'transwell',
       title: 'Transwell 细胞计数',
       desc: '智能识别染色细胞，自动计算迁移/侵袭细胞数量，支持批量处理与结果导出。',
@@ -53,14 +61,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '根据细胞计数结果，快速计算不同规格培养板（6孔、24孔、96孔等）的铺板体积与密度。',
       icon: <Grid3x3 size={32} className="text-pink-500" />,
       color: 'border-pink-200 hover:border-pink-500',
-      active: false
-    },
-    {
-      id: 'bca',
-      title: 'BCA 蛋白定量分析',
-      desc: '输入标准品与样品的 OD 值，自动拟合标准曲线（线性/多项式），计算样品蛋白浓度。',
-      icon: <Pipette size={32} className="text-orange-500" />,
-      color: 'border-orange-200 hover:border-orange-500',
       active: false
     },
   ];

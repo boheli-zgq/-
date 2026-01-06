@@ -496,7 +496,7 @@ export const WesternTool: React.FC = () => {
     
     if (!isTiff) {
         return {
-            id: Math.random().toString(36).substr(2, 9),
+            id: Math.random().toString(36).substring(2, 11),
             name: file.name,
             src: URL.createObjectURL(file)
         };
@@ -534,11 +534,11 @@ export const WesternTool: React.FC = () => {
                     const imageData = ctx.createImageData(page.width, page.height);
                     imageData.data.set(rgba);
                     ctx.putImageData(imageData, 0, 0);
-                    return new Promise((resolve) => {
+                    return new Promise<WbImage | null>((resolve) => {
                         canvas.toBlob((blob) => {
                             if (blob) {
                                 resolve({
-                                    id: Math.random().toString(36).substr(2, 9),
+                                    id: Math.random().toString(36).substring(2, 11),
                                     name: file.name,
                                     src: URL.createObjectURL(blob)
                                 });
