@@ -550,7 +550,7 @@ export const WesternTool: React.FC = () => {
                 }
             }
         } catch (err: any) {
-            console.error("TIFF Processing Error:", err);
+            console.error("TIFF Processing Error:", err instanceof Error ? err.message : String(err));
             return null;
         }
     }
@@ -569,7 +569,7 @@ export const WesternTool: React.FC = () => {
             const img = await processFile(files[i]);
             if (img) newImages.push(img);
         } catch (err: any) {
-            console.error(`Failed to process file ${files[i].name}`, err);
+            console.error(`Failed to process file ${files[i].name}`, err instanceof Error ? err.message : String(err));
         }
     }
 

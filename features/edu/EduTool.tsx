@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { CircleDot, Upload, Trash2, Sliders, Play, RefreshCw, Eye, Download, Info, BarChart3, Layers } from 'lucide-react';
+import { CircleDot, Upload, Trash2, Sliders, Play, RefreshCw, Eye, Download, Info, BarChart3, Layers, CheckCircle2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ErrorBar, Cell } from 'recharts';
 
 // --- Types ---
 
-interface DetectedBlob {
+interface DetectedCell {
   x: number;
   y: number;
   radius: number;
+  meanEduIntensity: number;
+  isPositive: boolean;
 }
 
 interface EduImage {
@@ -17,13 +19,12 @@ interface EduImage {
   src: string;
   
   // Stats
-  totalCount: number | null; // e.g., DAPI
-  positiveCount: number | null; // e.g., EdU
+  totalCount: number | null; // DAPI Count
+  positiveCount: number | null; // EdU+ Count
   proliferationRate: number | null; // %
   
   // Visualization Data
-  totalBlobs: DetectedBlob[];
-  positiveBlobs: DetectedBlob[];
+  cells: DetectedCell[];
   
   processed: boolean;
   width: number;
@@ -32,9 +33,9 @@ interface EduImage {
 
 interface ProcessSettings {
   nucleiChannel: 'blue' | 'red' | 'green' | 'gray';
-  nucleiThreshold: number; // Brightness > this = Nucleus
+  nucleiThreshold: number; // For Segmentation
   eduChannel: 'green' | 'red' | 'blue' | 'gray';
-  eduThreshold: number;
+  eduThreshold: number; // For Classification (Intensity within nucleus)
   minSize: number; // Min pixel count
   maxSize: number;
 }
@@ -99,35 +100,44 @@ const processFile = async (file: File): Promise<string | null> => {
     return null;
 };
 
-// --- Detection Logic ---
+// --- Detection Logic (Nuclei First) ---
 
-const detectBlobsInChannel = (
-    data: Uint8ClampedArray, 
-    width: number, 
-    height: number, 
-    channel: 'red' | 'green' | 'blue' | 'gray', 
-    threshold: number, 
-    minSize: number,
-    maxSize: number
-): DetectedBlob[] => {
+const getPixelValue = (data: Uint8ClampedArray, idx: number, channel: string) => {
+    // idx is pixel index (0 to w*h), data has 4 bytes per pixel
+    const i = idx * 4;
+    if (channel === 'red') return data[i];
+    if (channel === 'green') return data[i+1];
+    if (channel === 'blue') return data[i+2];
+    return (data[i] + data[i+1] + data[i+2]) / 3;
+};
+
+const detectNucleiAndClassify = (
+    img: HTMLImageElement,
+    settings: ProcessSettings
+): DetectedCell[] => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return [];
+    
+    ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const { data, width, height } = imageData;
+
     const binary = new Uint8Array(width * height);
     
-    // 1. Thresholding (Fluorescence: Bright signal on dark bg)
-    for (let i = 0; i < data.length; i += 4) {
-        let val = 0;
-        if (channel === 'red') val = data[i];
-        else if (channel === 'green') val = data[i+1];
-        else if (channel === 'blue') val = data[i+2];
-        else val = (data[i] + data[i+1] + data[i+2]) / 3;
-        
-        if (val > threshold) {
-            binary[i / 4] = 1;
+    // 1. Segmentation: Identify Nuclei (Total Cells)
+    for (let i = 0; i < width * height; i++) {
+        const val = getPixelValue(data, i, settings.nucleiChannel);
+        if (val > settings.nucleiThreshold) {
+            binary[i] = 1;
         }
     }
 
-    // 2. BFS Blob Detection
+    // 2. Blob Detection (BFS)
     const visited = new Uint8Array(width * height);
-    const blobs: DetectedBlob[] = [];
+    const cells: DetectedCell[] = [];
     const getIdx = (x: number, y: number) => y * width + x;
 
     for (let y = 0; y < height; y++) {
@@ -138,10 +148,17 @@ const detectBlobsInChannel = (
                 visited[idx] = 1;
                 let pixelCount = 0;
                 let minX = x, maxX = x, minY = y, maxY = y;
+                
+                // Accumulate EdU intensity within this blob
+                let eduIntensitySum = 0;
 
                 while (stack.length > 0) {
                     const [cx, cy] = stack.pop()!;
+                    const cIdx = getIdx(cx, cy);
+                    
                     pixelCount++;
+                    eduIntensitySum += getPixelValue(data, cIdx, settings.eduChannel);
+
                     if (cx < minX) minX = cx;
                     if (cx > maxX) maxX = cx;
                     if (cy < minY) minY = cy;
@@ -159,37 +176,24 @@ const detectBlobsInChannel = (
                     }
                 }
 
-                if (pixelCount >= minSize && pixelCount <= maxSize) {
+                if (pixelCount >= settings.minSize && pixelCount <= settings.maxSize) {
                     const w = maxX - minX;
                     const h = maxY - minY;
                     const radius = Math.sqrt(pixelCount / Math.PI);
-                    blobs.push({
+                    const meanEdu = eduIntensitySum / pixelCount;
+                    
+                    cells.push({
                         x: minX + w / 2,
                         y: minY + h / 2,
-                        radius: Math.max(2, radius)
+                        radius: Math.max(2, radius),
+                        meanEduIntensity: meanEdu,
+                        isPositive: meanEdu > settings.eduThreshold
                     });
                 }
             }
         }
     }
-    return blobs;
-};
-
-const processEduImage = (img: HTMLImageElement, settings: ProcessSettings) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return { totalBlobs: [], positiveBlobs: [] };
-    
-    ctx.drawImage(img, 0, 0);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const { data, width, height } = imageData;
-
-    const totalBlobs = detectBlobsInChannel(data, width, height, settings.nucleiChannel, settings.nucleiThreshold, settings.minSize, settings.maxSize);
-    const positiveBlobs = detectBlobsInChannel(data, width, height, settings.eduChannel, settings.eduThreshold, settings.minSize, settings.maxSize);
-
-    return { totalBlobs, positiveBlobs };
+    return cells;
 };
 
 export const EduTool: React.FC = () => {
@@ -202,7 +206,7 @@ export const EduTool: React.FC = () => {
     nucleiChannel: 'blue', // DAPI
     nucleiThreshold: 40,
     eduChannel: 'green', // EdU
-    eduThreshold: 50,
+    eduThreshold: 60,
     minSize: 10,
     maxSize: 5000
   });
@@ -230,8 +234,7 @@ export const EduTool: React.FC = () => {
               totalCount: null,
               positiveCount: null,
               proliferationRate: null,
-              totalBlobs: [],
-              positiveBlobs: [],
+              cells: [],
               processed: false,
               width: 0,
               height: 0
@@ -265,10 +268,9 @@ export const EduTool: React.FC = () => {
       const img = new Image();
       img.src = imgData.src;
       img.onload = () => {
-         const { totalBlobs, positiveBlobs } = processEduImage(img, settings);
-         const tCount = totalBlobs.length;
-         const pCount = positiveBlobs.length;
-         // Ensure rate <= 100% just in case, though technically independent detections can be anything
+         const cells = detectNucleiAndClassify(img, settings);
+         const tCount = cells.length;
+         const pCount = cells.filter(c => c.isPositive).length;
          const rate = tCount > 0 ? (pCount / tCount) * 100 : 0;
          
          setImages(prev => prev.map(item => 
@@ -279,8 +281,7 @@ export const EduTool: React.FC = () => {
                 totalCount: tCount,
                 positiveCount: pCount,
                 proliferationRate: rate,
-                totalBlobs,
-                positiveBlobs,
+                cells,
                 width: img.width,
                 height: img.height
               }
@@ -302,14 +303,14 @@ export const EduTool: React.FC = () => {
         const img = new Image();
         img.src = imgData.src;
         img.onload = () => {
-            const { totalBlobs, positiveBlobs } = processEduImage(img, settings);
-            const tCount = totalBlobs.length;
-            const pCount = positiveBlobs.length;
+            const cells = detectNucleiAndClassify(img, settings);
+            const tCount = cells.length;
+            const pCount = cells.filter(c => c.isPositive).length;
             const rate = tCount > 0 ? (pCount / tCount) * 100 : 0;
 
             setImages(prev => prev.map(item => 
                 item.id === imgData.id 
-                ? { ...item, processed: true, totalCount: tCount, positiveCount: pCount, proliferationRate: rate, totalBlobs, positiveBlobs, width: img.width, height: img.height } 
+                ? { ...item, processed: true, totalCount: tCount, positiveCount: pCount, proliferationRate: rate, cells, width: img.width, height: img.height } 
                 : item
             ));
             setTimeout(() => processNext(index + 1), 10);
@@ -334,24 +335,30 @@ export const EduTool: React.FC = () => {
           ctx.drawImage(img, 0, 0);
 
           if (imgData.processed) {
-              // Draw Total (DAPI) as hollow blue circles
-              ctx.strokeStyle = 'rgba(60, 130, 246, 0.6)'; // Blue
-              ctx.lineWidth = 1;
-              imgData.totalBlobs.forEach(b => {
+              // 1. Draw Total (Nuclei) Outlines
+              imgData.cells.forEach(b => {
                   ctx.beginPath();
                   ctx.arc(b.x, b.y, b.radius + 1, 0, Math.PI * 2);
+                  ctx.lineWidth = 1;
+                  // If positive, solid stroke. If negative, dashed or thinner?
+                  // Just use blue outline for all to show DAPI recognition.
+                  ctx.strokeStyle = 'rgba(60, 130, 246, 0.8)'; // Blue
                   ctx.stroke();
               });
 
-              // Draw Positive (EdU) as filled dots
-              const eduColor = settings.eduChannel === 'green' ? 'rgba(34, 197, 94, 0.5)' : 'rgba(239, 68, 68, 0.5)';
-              ctx.fillStyle = eduColor;
-              ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-              imgData.positiveBlobs.forEach(b => {
+              // 2. Draw Positive Indicators (Filled)
+              const eduColor = settings.eduChannel === 'green' ? 'rgba(34, 197, 94, 0.6)' : 'rgba(239, 68, 68, 0.6)';
+              imgData.cells.filter(c => c.isPositive).forEach(b => {
                   ctx.beginPath();
                   ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                  ctx.fillStyle = eduColor;
                   ctx.fill();
-                  ctx.stroke();
+                  
+                  // Optional: center dot
+                  ctx.beginPath();
+                  ctx.arc(b.x, b.y, 1, 0, Math.PI * 2);
+                  ctx.fillStyle = '#fff';
+                  ctx.fill();
               });
           }
       };
@@ -398,7 +405,7 @@ export const EduTool: React.FC = () => {
            </div>
            <div>
                <h2 className="text-2xl font-bold text-slate-800">EdU 细胞增殖分析</h2>
-               <p className="text-slate-500">自动识别 DAPI 计数与 EdU 阳性计数，计算增殖百分比</p>
+               <p className="text-slate-500">基于 DAPI 细胞核定位与 EdU 信号共定位分析 (Co-localization)</p>
            </div>
        </div>
 
@@ -472,7 +479,7 @@ export const EduTool: React.FC = () => {
                        <div className="flex flex-col gap-1 p-2 bg-blue-50 rounded-lg border border-blue-100">
                            <div className="flex items-center gap-2">
                                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                               <span className="text-xs font-bold text-blue-700">总细胞 (DAPI)</span>
+                               <span className="text-xs font-bold text-blue-700">步骤1: 细胞核识别 (DAPI)</span>
                                <select 
                                    value={settings.nucleiChannel}
                                    onChange={e => setSettings(s => ({...s, nucleiChannel: e.target.value as any}))}
@@ -483,7 +490,7 @@ export const EduTool: React.FC = () => {
                                </select>
                            </div>
                            <div className="flex items-center gap-1">
-                               <span className="text-[10px] text-slate-500">阈值</span>
+                               <span className="text-[10px] text-slate-500">分割阈值</span>
                                <input type="range" min="1" max="255" value={settings.nucleiThreshold} onChange={e => setSettings(s => ({...s, nucleiThreshold: parseInt(e.target.value)}))} className="w-16 h-1.5" />
                            </div>
                        </div>
@@ -492,7 +499,7 @@ export const EduTool: React.FC = () => {
                        <div className="flex flex-col gap-1 p-2 bg-lime-50 rounded-lg border border-lime-100">
                            <div className="flex items-center gap-2">
                                <div className="w-2 h-2 rounded-full bg-lime-500"></div>
-                               <span className="text-xs font-bold text-lime-700">阳性 (EdU)</span>
+                               <span className="text-xs font-bold text-lime-700">步骤2: 阳性判定 (EdU)</span>
                                <select 
                                    value={settings.eduChannel}
                                    onChange={e => setSettings(s => ({...s, eduChannel: e.target.value as any}))}
@@ -503,14 +510,14 @@ export const EduTool: React.FC = () => {
                                </select>
                            </div>
                            <div className="flex items-center gap-1">
-                               <span className="text-[10px] text-slate-500">阈值</span>
+                               <span className="text-[10px] text-slate-500">强度阈值</span>
                                <input type="range" min="1" max="255" value={settings.eduThreshold} onChange={e => setSettings(s => ({...s, eduThreshold: parseInt(e.target.value)}))} className="w-16 h-1.5" />
                            </div>
                        </div>
                    </div>
                    <div className="flex justify-between items-center border-t border-slate-100 pt-2">
                         <div className="flex items-center gap-2 text-xs text-slate-500">
-                            <span>最小尺寸:</span>
+                            <span>最小细胞尺寸:</span>
                             <input type="number" value={settings.minSize} onChange={e => setSettings(s => ({...s, minSize: parseInt(e.target.value)}))} className="w-12 border rounded px-1" />
                         </div>
                         <button onClick={analyzeActiveImage} disabled={!activeImageId || isProcessing} className="bg-lime-100 text-lime-700 hover:bg-lime-200 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors">
@@ -543,8 +550,12 @@ export const EduTool: React.FC = () => {
                </div>
                
                <div className="bg-blue-50 text-blue-800 text-xs p-3 rounded-lg flex gap-2 items-start border border-blue-100">
-                     <Info size={14} className="mt-0.5 shrink-0" />
-                     <p>系统通过亮度阈值分别识别两类细胞。蓝色空心圆代表总细胞（DAPI），绿色/红色实心点代表阳性细胞（EdU）。若识别不准，请调整对应通道的“阈值”。</p>
+                     <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-blue-600" />
+                     <p>
+                        <strong>逻辑更新：</strong> 系统采用“以核为中心”的分析方法。
+                        首先识别蓝色通道中的所有 DAPI 细胞核（总数），然后测量每个细胞核区域内的 EdU 荧光强度。
+                        如果强度高于阈值，则判定为阳性。这确保了在 Merge 图中，即使 EdU 信号覆盖了 DAPI，总细胞数依然准确。
+                     </p>
                </div>
            </div>
 
