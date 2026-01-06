@@ -274,13 +274,16 @@ export const WesternTool: React.FC = () => {
     let updatedSamples = [...samples];
     const roiField = detectType === 'target' ? 'targetRoi' : 'refRoi';
 
+    // Capture the current image ID to ensure it is used correctly in the loop
+    const currentImageId = activeImageId;
+
     if (matchExisting && samples.length > 0) {
         // Match Mode: Update existing samples in order
         blobs.forEach((blob, index) => {
             const centerX = blob.x + blob.w / 2;
             const centerY = blob.y + blob.h / 2;
             const roi: Roi = {
-                imageId: activeImageId,
+                imageId: currentImageId,
                 x: centerX - boxW / 2,
                 y: centerY - boxH / 2,
                 w: boxW,
@@ -311,7 +314,7 @@ export const WesternTool: React.FC = () => {
             const centerX = blob.x + blob.w / 2;
             const centerY = blob.y + blob.h / 2;
             const roi: Roi = {
-                imageId: activeImageId,
+                imageId: currentImageId,
                 x: centerX - boxW / 2,
                 y: centerY - boxH / 2,
                 w: boxW,
@@ -549,7 +552,7 @@ export const WesternTool: React.FC = () => {
                     });
                 }
             }
-        } catch (err: any) {
+        } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             console.error("TIFF Processing Error:", msg);
             return null;
@@ -569,7 +572,7 @@ export const WesternTool: React.FC = () => {
         try {
             const img = await processFile(files[i]);
             if (img) newImages.push(img);
-        } catch (err: any) {
+        } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             console.error(`Failed to process file ${files[i].name}`, msg);
         }
@@ -608,9 +611,11 @@ export const WesternTool: React.FC = () => {
   };
 
   const addSample = () => {
-    const newId = (Math.max(0, ...samples.map(s => parseInt(s.id))) + 1).toString();
+    const numericIds = samples.map(s => parseInt(s.id)).filter(n => !isNaN(n));
+    const nextId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : Date.now();
+    
     const newSample: WbSample = { 
-        id: newId, 
+        id: nextId.toString(), 
         name: `Sample ${samples.length + 1}`, 
         group: 'Group 1',
         isControl: false 
@@ -619,8 +624,10 @@ export const WesternTool: React.FC = () => {
   };
 
   const duplicateSample = (sample: WbSample) => {
-      const newId = (Math.max(0, ...samples.map(s => parseInt(s.id))) + 1).toString();
-      const newSample = { ...sample, id: newId, name: `${sample.name} Copy`, targetRoi: undefined, refRoi: undefined };
+      const numericIds = samples.map(s => parseInt(s.id)).filter(n => !isNaN(n));
+      const nextId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : Date.now();
+      
+      const newSample = { ...sample, id: nextId.toString(), name: `${sample.name} Copy`, targetRoi: undefined, refRoi: undefined };
       updateSamples([...samples, newSample]);
   };
 
