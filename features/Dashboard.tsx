@@ -1,11 +1,16 @@
 import React from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
+  // ==========================================
+  // 👇 在这里修改您的座右铭
+  // ==========================================
+  const MOTTO = "财富是对认知的奖赏，而不是对勤奋的补偿。";
+
   const tools = [
     {
       id: 'qpcr',
@@ -98,10 +103,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
   ];
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="text-center max-w-2xl mx-auto space-y-4">
-        <h2 className="text-3xl font-bold text-slate-800">欢迎来到科研的世界</h2>
-        <p className="text-slate-500">高效、精准、可视化的数据分析体验，助力科研发现。</p>
+    <div className="space-y-8 animate-fade-in pb-12">
+      <div className="text-center max-w-4xl mx-auto mb-16 pt-8">
+        <h2 className="text-4xl font-extrabold text-slate-800 tracking-tight mb-10">
+            欢迎来到科研的世界
+        </h2>
+        
+        {/* Motto Section */}
+        <div className="relative inline-block px-12 py-8 bg-white rounded-2xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] border border-slate-100 transition-transform duration-500 hover:scale-[1.02] cursor-default group">
+            <div className="absolute top-4 left-4 text-science-100 group-hover:text-science-200 transition-colors duration-500">
+                <Quote size={32} className="transform -scale-x-100" fill="currentColor" />
+            </div>
+            <p className="text-slate-700 text-xl md:text-2xl font-serif italic tracking-wide leading-relaxed relative z-10 px-4">
+                {MOTTO}
+            </p>
+            <div className="absolute bottom-4 right-4 text-science-100 group-hover:text-science-200 transition-colors duration-500">
+                <Quote size={32} fill="currentColor" />
+            </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
