@@ -5,10 +5,12 @@ import { QpcrTool } from './features/qpcr/QpcrTool';
 import { MolarityTool } from './features/molarity/MolarityTool';
 import { WesternTool } from './features/western/WesternTool';
 import { BcaTool } from './features/bca/BcaTool';
+import { TranswellTool } from './features/transwell/TranswellTool';
+import { ScratchTool } from './features/scratch/ScratchTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -30,6 +32,12 @@ function App() {
       )}
       {currentView === 'bca' && (
         <BcaTool />
+      )}
+      {currentView === 'transwell' && (
+        <TranswellTool />
+      )}
+      {currentView === 'scratch' && (
+        <ScratchTool />
       )}
 
       {/* Welcome Modal */}

@@ -45,7 +45,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '智能识别染色细胞，自动计算迁移/侵袭细胞数量，支持批量处理与结果导出。',
       icon: <Target size={32} className="text-indigo-500" />,
       color: 'border-indigo-200 hover:border-indigo-500',
-      active: false
+      active: true
     },
     {
       id: 'scratch',
@@ -53,7 +53,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '自动识别划痕边缘，计算划痕面积、愈合百分比及迁移速度。',
       icon: <Ruler size={32} className="text-cyan-500" />,
       color: 'border-cyan-200 hover:border-cyan-500',
-      active: false
+      active: true
     },
     {
       id: 'cell_plating',
