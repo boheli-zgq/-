@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Upload, Plus, Trash2, Maximize, Check, BarChart3, AlertCircle, RotateCcw, Activity, Image as ImageIcon, X, Download, Undo, Redo, Copy, Move, GripHorizontal } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ErrorBar, Cell } from 'recharts';
-// @ts-ignore
-import UTIF from 'utif';
 
 // --- Types ---
 
@@ -113,6 +111,17 @@ export const WesternTool: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      wbImages.forEach(img => {
+          if (img.src.startsWith('blob:')) {
+              URL.revokeObjectURL(img.src);
+          }
+      });
+    };
+  }, []);
+
   // --- Undo/Redo Logic ---
 
   const pushToHistory = (newSamples: WbSample[]) => {
@@ -166,46 +175,71 @@ export const WesternTool: React.FC = () => {
   // --- Step 1: Logic (Upload) ---
   
   const processFile = async (file: File): Promise<WbImage | null> => {
-    const isTiff = file.type === 'image/tiff' || file.name.toLowerCase().endsWith('.tif') || file.name.toLowerCase().endsWith('.tiff');
-    let src = '';
+    // Robust check for TIFF
+    const isTiff = file.type === 'image/tiff' || 
+                   file.type === 'image/x-tiff' ||
+                   file.name.toLowerCase().endsWith('.tif') || 
+                   file.name.toLowerCase().endsWith('.tiff');
+    
+    // For standard images, use Blob URL to save memory and improve performance
+    if (!isTiff) {
+        return {
+            id: Math.random().toString(36).substr(2, 9),
+            name: file.name,
+            src: URL.createObjectURL(file)
+        };
+    }
 
     if (isTiff) {
         try {
+            // Explicitly grab window.UTIF
+            const utifLib = (window as any).UTIF;
+            
+            if (!utifLib) {
+                console.error("UTIF library not found on window object.");
+                alert("TIFF processing library not loaded. Please refresh the page.");
+                return null;
+            }
+
             const buffer = await file.arrayBuffer();
-            const ifds = UTIF.decode(buffer);
+            const ifds = utifLib.decode(buffer);
             if (ifds && ifds.length > 0) {
                 const page = ifds[0];
-                UTIF.decodeImage(buffer, page);
-                const rgba = UTIF.toRGBA8(page);
+                utifLib.decodeImage(buffer, page);
+                const rgba = utifLib.toRGBA8(page);
+                
                 const canvas = document.createElement('canvas');
                 canvas.width = page.width;
                 canvas.height = page.height;
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
-                    const imageData = new ImageData(new Uint8ClampedArray(rgba.buffer), page.width, page.height);
+                    // Correctly populate ImageData from UTIF's Uint8Array
+                    const imageData = ctx.createImageData(page.width, page.height);
+                    imageData.data.set(rgba);
                     ctx.putImageData(imageData, 0, 0);
-                    src = canvas.toDataURL('image/png');
+                    
+                    // Convert to Blob URL
+                    return new Promise((resolve) => {
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                resolve({
+                                    id: Math.random().toString(36).substr(2, 9),
+                                    name: file.name,
+                                    src: URL.createObjectURL(blob)
+                                });
+                            } else {
+                                resolve(null);
+                            }
+                        }, 'image/png');
+                    });
                 }
             }
         } catch (err) {
-            console.error("TIFF Error", err);
+            console.error("TIFF Processing Error:", err);
             return null;
         }
-    } else {
-        src = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target?.result as string);
-            reader.readAsDataURL(file);
-        });
     }
-
-    if (src) {
-        return {
-            id: Math.random().toString(36).substr(2, 9),
-            name: file.name,
-            src
-        };
-    }
+    
     return null;
   };
 
@@ -216,9 +250,14 @@ export const WesternTool: React.FC = () => {
     setIsProcessing(true);
     const newImages: WbImage[] = [];
 
+    // Process sequentially to prevent UI freezing / memory issues
     for (let i = 0; i < files.length; i++) {
-        const img = await processFile(files[i]);
-        if (img) newImages.push(img);
+        try {
+            const img = await processFile(files[i]);
+            if (img) newImages.push(img);
+        } catch (err) {
+            console.error(`Failed to process file ${files[i].name}`, err);
+        }
     }
 
     if (newImages.length > 0) {
@@ -227,14 +266,21 @@ export const WesternTool: React.FC = () => {
             setActiveImageId(newImages[0].id);
         }
     } else {
-        alert("无法处理所选文件。");
+        alert("无法处理部分或所有文件，请确保文件格式正确 (JPG, PNG, TIFF)。");
     }
     
     setIsProcessing(false);
+    // Reset input so same files can be selected again if needed
     e.target.value = '';
   };
 
   const removeImage = (id: string) => {
+      // Revoke URL to free memory
+      const imgToRemove = wbImages.find(img => img.id === id);
+      if (imgToRemove && imgToRemove.src.startsWith('blob:')) {
+          URL.revokeObjectURL(imgToRemove.src);
+      }
+
       setWbImages(prev => prev.filter(img => img.id !== id));
       // Remove ROIs associated with this image
       const newSamples = samples.map(s => ({
@@ -291,6 +337,8 @@ export const WesternTool: React.FC = () => {
           if (!imageCacheRef.current.has(imgData.id)) {
               const img = new Image();
               img.src = imgData.src;
+              // Add simple error handling for image loading
+              img.onerror = () => console.error(`Failed to load image: ${imgData.name}`);
               imageCacheRef.current.set(imgData.id, img);
           }
       });
@@ -310,7 +358,7 @@ export const WesternTool: React.FC = () => {
     const ctx = canvas.getContext('2d');
     const img = imageCacheRef.current.get(activeImageId);
 
-    if (!ctx || !img || !img.complete) return;
+    if (!ctx || !img || !img.complete || img.naturalWidth === 0) return;
 
     // Set canvas dimensions to match image
     canvas.width = img.width;
@@ -722,7 +770,7 @@ export const WesternTool: React.FC = () => {
                 </p>
                 <input 
                     type="file" 
-                    accept="image/*,.tif,.tiff" 
+                    accept="image/jpeg,image/png,image/tiff,.tif,.tiff,.jpg,.jpeg,.png" 
                     onChange={handleImageUpload} 
                     multiple
                     id="wb-upload" 
