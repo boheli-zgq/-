@@ -23,32 +23,42 @@ type RegressionModel = 'linear' | 'quadratic' | 'power' | '4pl';
 interface RegressionResult {
   r2: number;
   equationStr: string;
-  fn: (y: number) => number; // Calculate Conc (x) from OD (y)
-  predict: (x: number) => number; // Calculate OD (y) from Conc (x) for charting
+  fn: (x: number) => number; // Calculate Conc (y) from OD (x)
+  predict: (x: number) => number; // Calculate Conc (y) from OD (x) for charting
 }
 
 // --- Math Helpers ---
+
+// NOTE: All regressions now fit Conc = f(OD).
+// x = OD, y = Conc
 
 // Linear: y = mx + b
 const fitLinear = (points: StandardPoint[]): RegressionResult | null => {
   const n = points.length;
   let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-  points.forEach(p => { sumX += p.conc; sumY += p.od; sumXY += p.conc * p.od; sumX2 += p.conc * p.conc; });
+  points.forEach(p => { 
+      const x = p.od; 
+      const y = p.conc; 
+      sumX += x; sumY += y; sumXY += x * y; sumX2 += x * x; 
+  });
   
-  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const denom = (n * sumX2 - sumX * sumX);
+  if (denom === 0) return null;
+
+  const slope = (n * sumXY - sumX * sumY) / denom;
   const intercept = (sumY - slope * sumX) / n;
   
   // R2
   const meanY = sumY / n;
-  const ssTot = points.reduce((a, b) => a + Math.pow(b.od - meanY, 2), 0);
-  const ssRes = points.reduce((a, b) => a + Math.pow(b.od - (slope * b.conc + intercept), 2), 0);
+  const ssTot = points.reduce((a, b) => a + Math.pow(b.conc - meanY, 2), 0);
+  const ssRes = points.reduce((a, b) => a + Math.pow(b.conc - (slope * b.od + intercept), 2), 0);
   const r2 = 1 - (ssRes / ssTot);
 
   return {
     r2,
-    equationStr: `y = ${slope.toFixed(4)}x + ${intercept.toFixed(4)}`,
-    predict: (x) => slope * x + intercept,
-    fn: (y) => (y - intercept) / slope
+    equationStr: `Conc = ${slope.toFixed(4)} * OD + ${intercept.toFixed(4)}`,
+    fn: (x) => slope * x + intercept,
+    predict: (x) => slope * x + intercept
   };
 };
 
@@ -59,18 +69,12 @@ const fitQuadratic = (points: StandardPoint[]): RegressionResult | null => {
 
   let sX = 0, sX2 = 0, sX3 = 0, sX4 = 0, sY = 0, sXY = 0, sX2Y = 0;
   points.forEach(p => {
-    const x = p.conc; const y = p.od;
+    const x = p.od; const y = p.conc; // Swapped
     sX += x; sX2 += x*x; sX3 += x*x*x; sX4 += x*x*x*x;
     sY += y; sXY += x*y; sX2Y += x*x*y;
   });
 
-  // Solve 3x3 Linear System using Cramer's Rule or Gaussian elimination
-  // Matrix:
-  // [ n    sX   sX2  ] [ c ]   [ sY   ]
-  // [ sX   sX2  sX3  ] [ b ] = [ sXY  ]
-  // [ sX2  sX3  sX4  ] [ a ]   [ sX2Y ]
-  
-  // Determinant helper
+  // Solve 3x3 Linear System
   const det3x3 = (m: number[][]) => {
       return m[0][0]*(m[1][1]*m[2][2] - m[1][2]*m[2][1]) -
              m[0][1]*(m[1][0]*m[2][2] - m[1][2]*m[2][0]) +
@@ -90,28 +94,19 @@ const fitQuadratic = (points: StandardPoint[]): RegressionResult | null => {
 
   // R2
   const meanY = sY / n;
-  const ssTot = points.reduce((acc, p) => acc + Math.pow(p.od - meanY, 2), 0);
-  const ssRes = points.reduce((acc, p) => acc + Math.pow(p.od - (a*p.conc*p.conc + b*p.conc + c), 2), 0);
+  const ssTot = points.reduce((acc, p) => acc + Math.pow(p.conc - meanY, 2), 0);
+  const ssRes = points.reduce((acc, p) => acc + Math.pow(p.conc - (a*p.od*p.od + b*p.od + c), 2), 0);
   const r2 = 1 - (ssRes / ssTot);
 
   return {
     r2,
-    equationStr: `y = ${a.toFixed(5)}x² + ${b.toFixed(4)}x + ${c.toFixed(4)}`,
-    predict: (x) => a * x * x + b * x + c,
-    fn: (y) => {
-        // Solve ax^2 + bx + (c-y) = 0 using quadratic formula
-        // x = (-b +/- sqrt(b^2 - 4a(c-y))) / 2a
-        // Usually take the positive root for concentration
-        const delta = b * b - 4 * a * (c - y);
-        if (delta < 0) return 0;
-        const x1 = (-b + Math.sqrt(delta)) / (2 * a);
-        const x2 = (-b - Math.sqrt(delta)) / (2 * a);
-        return Math.max(x1, x2); // Return valid positive concentration
-    }
+    equationStr: `Conc = ${a.toFixed(5)} * OD² + ${b.toFixed(4)} * OD + ${c.toFixed(4)}`,
+    fn: (x) => a * x * x + b * x + c,
+    predict: (x) => a * x * x + b * x + c
   };
 };
 
-// Power (Log-Log): y = A * x^B  => ln(y) = ln(A) + B * ln(x)
+// Power (Log-Log): y = A * x^B  => Conc = A * OD^B
 const fitPower = (points: StandardPoint[]): RegressionResult | null => {
   // Filter out zeros
   const validPoints = points.filter(p => p.conc > 0 && p.od > 0);
@@ -121,136 +116,110 @@ const fitPower = (points: StandardPoint[]): RegressionResult | null => {
   let sumLnX = 0, sumLnY = 0, sumLnXLnY = 0, sumLnX2 = 0;
   
   validPoints.forEach(p => {
-    const lx = Math.log(p.conc);
-    const ly = Math.log(p.od);
+    const lx = Math.log(p.od);   // X = OD
+    const ly = Math.log(p.conc); // Y = Conc
     sumLnX += lx;
     sumLnY += ly;
     sumLnXLnY += lx * ly;
     sumLnX2 += lx * lx;
   });
 
-  const B = (n * sumLnXLnY - sumLnX * sumLnY) / (n * sumLnX2 - sumLnX * sumLnX);
+  const denom = (n * sumLnX2 - sumLnX * sumLnX);
+  if (denom === 0) return null;
+
+  const B = (n * sumLnXLnY - sumLnX * sumLnY) / denom;
   const lnA = (sumLnY - B * sumLnX) / n;
   const A = Math.exp(lnA);
 
-  // R2 calculation on original scale
-  const meanY = points.reduce((a, b) => a + b.od, 0) / points.length;
-  const ssTot = points.reduce((a, b) => a + Math.pow(b.od - meanY, 2), 0);
-  const ssRes = points.reduce((a, b) => a + Math.pow(b.od - (A * Math.pow(b.conc, B)), 2), 0);
+  // R2 calculation on original scale (Y=Conc)
+  const meanY = points.reduce((a, b) => a + b.conc, 0) / points.length;
+  const ssTot = points.reduce((a, b) => a + Math.pow(b.conc - meanY, 2), 0);
+  const ssRes = points.reduce((a, b) => a + Math.pow(b.conc - (A * Math.pow(b.od, B)), 2), 0);
   const r2 = 1 - (ssRes / ssTot);
 
   return {
     r2,
-    equationStr: `y = ${A.toFixed(4)} * x^${B.toFixed(4)}`,
-    predict: (x) => A * Math.pow(x, B),
-    fn: (y) => Math.pow(y / A, 1 / B)
+    equationStr: `Conc = ${A.toFixed(4)} * OD^${B.toFixed(4)}`,
+    fn: (x) => A * Math.pow(x, B),
+    predict: (x) => A * Math.pow(x, B)
   };
 };
 
 // 4PL: y = d + (a - d) / (1 + (x / c)^b)
-// We use a simplified estimation approach for React without heavy math libs.
-// a: min asymptote (approx min OD)
-// d: max asymptote (approx max OD)
-// c: inflection point (EC50)
-// b: slope factor
+// Here y = Conc, x = OD
 const fit4PL = (points: StandardPoint[]): RegressionResult | null => {
     if (points.length < 4) return null;
 
-    // 1. Initial Guesses
-    const sorted = [...points].sort((a,b) => a.conc - b.conc);
-    const minConc = sorted[0].conc;
-    const maxConc = sorted[sorted.length-1].conc;
+    // x=OD, y=Conc
+    // Sort by OD (x) to estimate asymptotes
+    const sorted = [...points].sort((a,b) => a.od - b.od);
     
-    // Guess parameters
-    let a = sorted[0].od; // Min OD
-    let d = sorted[sorted.length-1].od; // Max OD
-    let c = (minConc + maxConc) / 2; // Midpoint
-    let b = 1.0; // Slope guess
+    // Fixed Asymptotes Estimates (Min Conc and Max Conc)
+    // We assume data covers the range reasonably well
+    const minConc = Math.min(...points.map(p => p.conc));
+    const maxConc = Math.max(...points.map(p => p.conc));
+    
+    // Slightly expand range to avoid Log(0)
+    const fixedA = minConc * 0.95; // Min asymptote (Conc at low OD)
+    const fixedD = maxConc * 1.05; // Max asymptote (Conc at high OD)
 
-    // 2. Simple Iterative Optimization (Gradient Descent-ish)
-    // This is a naive implementation but sufficient for basic client-side curve fitting
-    const learningRate = 0.01;
-    const iterations = 500;
+    // Linearization
+    // y = d + (a-d)/(1+(x/c)^b)
+    // (a-d)/(y-d) - 1 = (x/c)^b
+    // ln( (a-d)/(y-d) - 1 ) = b*ln(x) - b*ln(c)
+    // Y' = slope * X' + intercept
+    // Y' = ln term
+    // X' = ln(x) = ln(OD)
+    // slope = b
+    // intercept = -b*ln(c)
 
-    for(let i=0; i<iterations; i++) {
-        let gradA=0, gradB=0, gradC=0, gradD=0;
+    const linearData = points.map(p => {
+        const y = p.conc;
+        const x = p.od;
         
-        points.forEach(p => {
-            const x = p.conc;
-            const y_obs = p.od;
-            
-            // Current prediction
-            const denom = 1 + Math.pow(x/c, b);
-            const y_pred = d + (a - d) / denom;
-            const diff = y_pred - y_obs;
+        // Term inside log
+        // Note: if curve is increasing (a < d), and y is between a and d.
+        // (a-d) is negative. (y-d) is negative. ratio is positive.
+        const numerator = fixedA - fixedD;
+        const denominator = y - fixedD;
+        if (denominator === 0) return null;
+        
+        const term = (numerator / denominator) - 1;
+        if (term <= 0 || x <= 0) return null;
 
-            // Partial derivatives (Approx)
-            // very simplified gradients for performance/stability in JS
-            gradA += diff * (1/denom);
-            gradD += diff * (1 - 1/denom);
-            // ... b and c are harder, we keep them static or simple in this naive version
-            // For a robust tool, we assume user uses linear/quad if 4PL fails.
-        });
+        return { Xp: Math.log(x), Yp: Math.log(term) };
+    }).filter(p => p !== null) as {Xp: number, Yp: number}[];
 
-        a -= learningRate * gradA;
-        d -= learningRate * gradD;
-    }
-    
-    // Note: Implementing full Levenberg-Marquardt here is too much code.
-    // We will fallback to a "best effort" curve passing through min/max/mid.
-    // Better Approach: Use Linear Regression on linearized form for initial guess
-    // Linearize: ln((a-d)/(y-d) - 1) = b * ln(x) - b * ln(c)
-    // This requires knowing a (min) and d (max).
-    
-    // Refined 4PL Strategy: Fixed asymptotes
-    const fixedA = Math.min(...points.map(p => p.od)) * 0.95; // Slightly lower than min
-    const fixedD = Math.max(...points.map(p => p.od)) * 1.05; // Slightly higher than max
-    
-    // Linearize transformation
-    const linearData = points.filter(p => p.od > fixedA && p.od < fixedD).map(p => {
-        // Y' = ln( (fixedA - fixedD) / (y - fixedD) - 1 )  <-- check formula logic
-        // y = d + (a-d)/(1+(x/c)^b)
-        // (y-d)/(a-d) = 1/(1+(x/c)^b)
-        // (a-d)/(y-d) = 1 + (x/c)^b
-        // (a-d)/(y-d) - 1 = (x/c)^b
-        // ln(...) = b*ln(x) - b*ln(c)
-        const term = (fixedA - fixedD) / (p.od - fixedD) - 1;
-        if (term <= 0) return null;
-        return { x: Math.log(p.conc), y: Math.log(term) };
-    }).filter(p => p !== null) as {x: number, y: number}[];
+    if (linearData.length < 2) return null;
 
-    if (linearData.length < 2) return null; // Fallback
-
-    // Fit line to linearized data
+    // Fit line
     let sLx = 0, sLy = 0, sLxLy = 0, sLx2 = 0;
     const count = linearData.length;
-    linearData.forEach(p => { sLx += p.x; sLy += p.y; sLxLy += p.x*p.y; sLx2 += p.x*p.x; });
-    const slope = (count * sLxLy - sLx * sLy) / (count * sLx2 - sLx * sLx); // This is 'b'
-    const intercept = (sLy - slope * sLx) / count; // This is -b*ln(c)
+    linearData.forEach(p => { sLx += p.Xp; sLy += p.Yp; sLxLy += p.Xp*p.Yp; sLx2 += p.Xp*p.Xp; });
+    
+    const denom = (count * sLx2 - sLx * sLx);
+    if (denom === 0) return null;
+
+    const slope = (count * sLxLy - sLx * sLy) / denom; // b
+    const intercept = (sLy - slope * sLx) / count; // -b*ln(c)
     
     const finalB = slope;
     const finalC = Math.exp(intercept / -finalB);
 
-    // Calculate R2
-    const meanY = points.reduce((acc, p) => acc + p.od, 0) / points.length;
-    const ssTot = points.reduce((acc, p) => acc + Math.pow(p.od - meanY, 2), 0);
+    // Calculate R2 (Y=Conc)
+    const meanY = points.reduce((acc, p) => acc + p.conc, 0) / points.length;
+    const ssTot = points.reduce((acc, p) => acc + Math.pow(p.conc - meanY, 2), 0);
     const ssRes = points.reduce((acc, p) => {
-        const yPred = fixedD + (fixedA - fixedD) / (1 + Math.pow(p.conc / finalC, finalB));
-        return acc + Math.pow(p.od - yPred, 2);
+        const yPred = fixedD + (fixedA - fixedD) / (1 + Math.pow(p.od / finalC, finalB));
+        return acc + Math.pow(p.conc - yPred, 2);
     }, 0);
     const r2 = 1 - (ssRes / ssTot);
 
     return {
         r2,
         equationStr: `4PL (EC50=${finalC.toFixed(2)}, Slope=${finalB.toFixed(2)})`,
-        predict: (x) => fixedD + (fixedA - fixedD) / (1 + Math.pow(x / finalC, finalB)),
-        fn: (y) => {
-            // Solve for x
-            // (a-d)/(y-d) - 1 = (x/c)^b
-            const term = (fixedA - fixedD) / (y - fixedD) - 1;
-            if (term <= 0) return 0;
-            return finalC * Math.pow(term, 1/finalB);
-        }
+        fn: (x) => fixedD + (fixedA - fixedD) / (1 + Math.pow(x / finalC, finalB)),
+        predict: (x) => fixedD + (fixedA - fixedD) / (1 + Math.pow(x / finalC, finalB))
     };
 };
 
@@ -311,7 +280,7 @@ export const BcaTool: React.FC = () => {
 
   // 3. Perform Regression
   const regression = useMemo(() => {
-    // Exclude points with conc=0 for Power/Log models if needed, handle inside functions
+    // x = OD, y = Conc
     if (model === 'linear') return fitLinear(processedStandards);
     if (model === 'quadratic') return fitQuadratic(processedStandards);
     if (model === 'power') return fitPower(processedStandards);
@@ -327,8 +296,11 @@ export const BcaTool: React.FC = () => {
     const blankOD = (subtractBlank && blankPoint) ? blankPoint.od : 0;
 
     return samples.map(s => {
-      const correctedOD = Math.max(0.0001, s.od - blankOD); // Avoid 0 for some math
+      const correctedOD = Math.max(0.0001, s.od - blankOD); // Avoid 0
+      
+      // Calculate Conc directly from OD
       const rawConc = regression.fn(correctedOD);
+      
       // Ensure concentration isn't negative
       const validConc = rawConc < 0 || isNaN(rawConc) ? 0 : rawConc;
       return {
@@ -405,21 +377,21 @@ export const BcaTool: React.FC = () => {
   const chartData = useMemo(() => {
     if (!regression || processedStandards.length === 0) return { points: processedStandards, line: [] };
     
-    const maxConc = Math.max(...processedStandards.map(s => s.conc));
-    const minConc = Math.min(...processedStandards.map(s => s.conc));
+    const maxOD = Math.max(...processedStandards.map(s => s.od));
+    const minOD = Math.min(...processedStandards.map(s => s.od));
     
-    // Generate smooth curve points
+    // Generate smooth curve points (X = OD, Y = Conc)
     const lineData = [];
     const steps = 50;
-    const range = maxConc - minConc;
+    
     // Extend slightly
-    const start = Math.max(0, minConc);
-    const end = maxConc * 1.1;
+    const start = Math.max(0, minOD);
+    const end = maxOD * 1.1;
     const stepSize = (end - start) / steps;
 
     for(let i=0; i<=steps; i++) {
-        const x = start + i * stepSize;
-        lineData.push({ conc: x, trend: regression.predict(x) });
+        const x = start + i * stepSize; // x is OD
+        lineData.push({ od: x, trend: regression.predict(x) }); // trend is Conc
     }
     
     return { points: processedStandards, line: lineData };
@@ -465,22 +437,22 @@ export const BcaTool: React.FC = () => {
                        </div>
 
                        <div>
-                           <label className="block text-xs font-bold text-slate-500 mb-1">拟合模型</label>
+                           <label className="block text-xs font-bold text-slate-500 mb-1">拟合模型 (Conc = f(OD))</label>
                            <select 
                                 value={model}
                                 onChange={(e) => setModel(e.target.value as any)}
                                 className="w-full text-sm border-slate-300 rounded-md py-1.5 focus:border-orange-500 focus:ring-orange-500"
                            >
-                               <option value="linear">Linear (y = mx + b)</option>
+                               <option value="linear">Linear (Linear Regression)</option>
                                <option value="quadratic">Quadratic (Polynomial 2nd)</option>
-                               <option value="power">Power / Log-Log (ELISA)</option>
+                               <option value="power">Power (Allometric)</option>
                                <option value="4pl">4PL (4-Parameter Logistic)</option>
                            </select>
                            <p className="text-[10px] text-slate-400 mt-1">
-                               {model === 'linear' && '适用于标准 BCA，简单线性关系。'}
+                               {model === 'linear' && '适用于标准 BCA，线性关系。'}
                                {model === 'quadratic' && '适用于轻微弯曲的标准曲线。'}
-                               {model === 'power' && '适用于双对数线性化的 ELISA 数据。'}
-                               {model === '4pl' && 'ELISA 推荐模型，适用于S型曲线。'}
+                               {model === 'power' && '适用于简单的幂函数关系。'}
+                               {model === '4pl' && 'ELISA 常用 S 型曲线拟合。'}
                            </p>
                        </div>
 
@@ -491,7 +463,7 @@ export const BcaTool: React.FC = () => {
                        
                        {regression && (
                            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 space-y-1">
-                               <div className="text-xs text-blue-500 font-bold uppercase tracking-wide">拟合结果</div>
+                               <div className="text-xs text-blue-500 font-bold uppercase tracking-wide">拟合结果 (Y=Conc)</div>
                                <div className="font-mono text-sm text-blue-800 font-bold">
                                    R² = {regression.r2.toFixed(4)}
                                </div>
@@ -528,18 +500,19 @@ export const BcaTool: React.FC = () => {
                    <ResponsiveContainer width="100%" height="100%">
                        <ComposedChart margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                           {/* X Axis is now OD */}
                            <XAxis 
-                                dataKey="conc" 
-                                type="number" 
-                                name="Concentration" 
-                                unit={` ${unit}`}
-                                label={{ value: `Concentration (${unit})`, position: 'bottom', offset: 0, style: { fill: '#64748b', fontSize: 12 } }}
-                                domain={['auto', 'auto']}
-                           />
-                           <YAxis 
+                                dataKey="od" 
                                 type="number" 
                                 name="OD" 
-                                label={{ value: 'OD (Absorbance)', angle: -90, position: 'insideLeft', style: { fill: '#64748b', fontSize: 12 } }} 
+                                label={{ value: 'OD (Absorbance)', position: 'bottom', offset: 0, style: { fill: '#64748b', fontSize: 12 } }}
+                                domain={['auto', 'auto']}
+                           />
+                           {/* Y Axis is now Concentration */}
+                           <YAxis 
+                                type="number" 
+                                name="Concentration" 
+                                label={{ value: `Concentration (${unit})`, angle: -90, position: 'insideLeft', style: { fill: '#64748b', fontSize: 12 } }} 
                            />
                            <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                            <Scatter name="Standards" data={chartData.points} fill="#f97316" shape="circle" />

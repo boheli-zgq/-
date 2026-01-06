@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -45,6 +45,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '支持多通道荧光图片分析，计算平均荧光强度(MFI)、阳性面积占比及积分光密度。',
       icon: <Aperture size={32} className="text-rose-500" />,
       color: 'border-rose-200 hover:border-rose-500',
+      active: true
+    },
+    {
+      id: 'edu',
+      title: 'EdU 细胞增殖分析',
+      desc: '自动识别 DAPI（总细胞）与 EdU（阳性细胞），计算细胞增殖率与细胞计数。',
+      icon: <CircleDot size={32} className="text-lime-500" />,
+      color: 'border-lime-200 hover:border-lime-500',
       active: true
     },
     {

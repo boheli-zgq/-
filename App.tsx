@@ -8,10 +8,11 @@ import { BcaTool } from './features/bca/BcaTool';
 import { TranswellTool } from './features/transwell/TranswellTool';
 import { ScratchTool } from './features/scratch/ScratchTool';
 import { ImmunofluorescenceTool } from './features/immunofluorescence/ImmunofluorescenceTool';
+import { EduTool } from './features/edu/EduTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -42,6 +43,9 @@ function App() {
       )}
       {currentView === 'if_analysis' && (
         <ImmunofluorescenceTool />
+      )}
+      {currentView === 'edu' && (
+        <EduTool />
       )}
 
       {/* Welcome Modal */}
