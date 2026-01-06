@@ -11,7 +11,10 @@ function App() {
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
-    <Layout onGoHome={() => setCurrentView('dashboard')}>
+    <Layout 
+      onGoHome={() => setCurrentView('dashboard')}
+      onBack={currentView !== 'dashboard' ? () => setCurrentView('dashboard') : undefined}
+    >
       {currentView === 'dashboard' && (
         <Dashboard onSelectTool={(id) => setCurrentView(id as any)} />
       )}

@@ -1,12 +1,13 @@
 import React from 'react';
-import { Microscope, Activity, Github } from 'lucide-react';
+import { Microscope, Activity, Github, ArrowLeft } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
   onGoHome: () => void;
+  onBack?: () => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, onGoHome }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, onGoHome, onBack }) => {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
       {/* Header */}
@@ -36,6 +37,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, onGoHome }) => {
 
       {/* Main Content */}
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {onBack && (
+          <button 
+            onClick={onBack}
+            className="mb-6 flex items-center gap-2 text-slate-500 hover:text-science-600 transition-colors group"
+          >
+             <div className="p-1.5 rounded-full bg-white border border-slate-200 group-hover:border-science-200 group-hover:bg-science-50 transition-colors shadow-sm">
+               <ArrowLeft size={16} />
+             </div>
+             <span className="font-medium text-sm">返回</span>
+          </button>
+        )}
         {children}
       </main>
 

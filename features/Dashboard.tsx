@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -30,6 +30,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       icon: <Activity size={32} className="text-emerald-500" />,
       color: 'border-emerald-200 hover:border-emerald-500',
       active: true
+    },
+    {
+      id: 'transwell',
+      title: 'Transwell 细胞计数',
+      desc: '智能识别染色细胞，自动计算迁移/侵袭细胞数量，支持批量处理与结果导出。',
+      icon: <Target size={32} className="text-indigo-500" />,
+      color: 'border-indigo-200 hover:border-indigo-500',
+      active: false
+    },
+    {
+      id: 'scratch',
+      title: '细胞划痕愈合分析',
+      desc: '自动识别划痕边缘，计算划痕面积、愈合百分比及迁移速度。',
+      icon: <Ruler size={32} className="text-cyan-500" />,
+      color: 'border-cyan-200 hover:border-cyan-500',
+      active: false
     },
     {
       id: 'cell_plating',

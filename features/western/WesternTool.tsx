@@ -834,7 +834,7 @@ export const WesternTool: React.FC = () => {
           if (toolMode === 'region_detect') { if (canvasRef.current) canvasRef.current.style.cursor = 'crosshair'; return; }
           const hit = hitTest(pos.x, pos.y);
           if (hit) {
-              setHoveredRoi({ sampleId: hit.sampleId, type: hit.type as any, handle: hit.handle });
+              setHoveredRoi({ sampleId: hit.sampleId, type: hit.type, handle: hit.handle });
               if (hit.handle === 'center') canvasRef.current!.style.cursor = 'move';
               else canvasRef.current!.style.cursor = 'nwse-resize';
           } else {
@@ -1031,7 +1031,7 @@ export const WesternTool: React.FC = () => {
                                  <input type="range" min="1" max="254" value={detectionThreshold} onChange={(e) => setDetectionThreshold(parseInt(e.target.value))} className="w-32 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-500" title="Threshold: Lower = Detect only darker bands" />
                              </div>
                              <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-                                 <select value={detectType} onChange={(e) => setDetectType(e.target.value as any)} className="text-sm border-slate-300 rounded-md py-1 px-2 shadow-sm">
+                                 <select value={detectType} onChange={(e) => setDetectType(e.target.value as 'target' | 'ref')} className="text-sm border-slate-300 rounded-md py-1 px-2 shadow-sm">
                                      <option value="target">检测目的蛋白</option>
                                      <option value="ref">检测内参蛋白</option>
                                  </select>
