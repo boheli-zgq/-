@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -26,6 +26,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '上传条带图片，手动框选目标蛋白与内参蛋白，自动计算相对灰度值并归一化。',
       icon: <Activity size={32} className="text-emerald-500" />,
       color: 'border-emerald-200 hover:border-emerald-500',
+      active: true
+    },
+    {
+      id: 'ihc',
+      title: '免疫组化 (IHC) 分析',
+      desc: '基于颜色解卷积算法(H&E DAB)，自动计算阳性面积占比、平均光密度及 H-Score。',
+      icon: <Palette size={32} className="text-amber-600" />,
+      color: 'border-amber-200 hover:border-amber-500',
       active: true
     },
     {

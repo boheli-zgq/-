@@ -12,10 +12,11 @@ import { EduTool } from './features/edu/EduTool';
 import { ColonyTool } from './features/colony/ColonyTool';
 import { CellPlatingTool } from './features/cell_plating/CellPlatingTool';
 import { TransfectionTool } from './features/transfection/TransfectionTool';
+import { IhcTool } from './features/ihc/IhcTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -58,6 +59,9 @@ function App() {
       )}
       {currentView === 'transfection' && (
         <TransfectionTool />
+      )}
+      {currentView === 'ihc' && (
+        <IhcTool />
       )}
 
       {/* Welcome Modal */}
