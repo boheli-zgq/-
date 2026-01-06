@@ -82,7 +82,7 @@ const calculateDensityFromImage = (
         totalDensity += density;
       }
       return totalDensity;
-  } catch (e) {
+  } catch (e: any) {
       console.warn("Error calculating density (ROI likely out of bounds)", e);
       return 0;
   }
@@ -454,7 +454,40 @@ export const WesternTool: React.FC = () => {
 
 
   // --- Step 1: Logic (Upload) ---
-  // ... (Upload Logic Unchanged) ...
+  
+  // Helper to ensure UTIF is loaded if missing
+  const ensureUtifLoaded = async () => {
+      if ((window as any).UTIF) return true;
+      
+      return new Promise<boolean>((resolve) => {
+          console.log("UTIF not detected, attempting dynamic load...");
+          
+          // Try loading from fallback unpkg first
+          const script = document.createElement('script');
+          script.src = "https://unpkg.com/utif@3.1.0/UTIF.js";
+          script.crossOrigin = "anonymous";
+          script.onload = () => {
+              console.log("UTIF loaded via unpkg");
+              resolve(true);
+          };
+          script.onerror = () => {
+              // Try another fallback if unpkg fails
+              const script2 = document.createElement('script');
+              script2.src = "https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js";
+              script2.onload = () => {
+                  console.log("UTIF loaded via jsdelivr");
+                  resolve(true);
+              };
+              script2.onerror = () => {
+                  console.error("Failed to load UTIF from all sources");
+                  resolve(false);
+              };
+              document.body.appendChild(script2);
+          };
+          document.body.appendChild(script);
+      });
+  };
+
   const processFile = async (file: File): Promise<WbImage | null> => {
     const isTiff = file.type === 'image/tiff' || 
                    file.type === 'image/x-tiff' ||
@@ -471,12 +504,22 @@ export const WesternTool: React.FC = () => {
 
     if (isTiff) {
         try {
-            const utifLib = (window as any).UTIF;
+            let utifLib = (window as any).UTIF;
+            
+            // If library is missing, try to load it dynamically
+            if (!utifLib) {
+                const loaded = await ensureUtifLoaded();
+                if (loaded) {
+                    utifLib = (window as any).UTIF;
+                }
+            }
+
             if (!utifLib) {
                 console.error("UTIF library not found on window object.");
-                alert("TIFF processing library not loaded. Please refresh the page.");
+                alert("无法加载 TIFF 处理库。请检查网络连接，或尝试上传 JPG/PNG 格式的图片。");
                 return null;
             }
+
             const buffer = await file.arrayBuffer();
             const ifds = utifLib.decode(buffer);
             if (ifds && ifds.length > 0) {
@@ -506,8 +549,8 @@ export const WesternTool: React.FC = () => {
                     });
                 }
             }
-        } catch (err) {
-            console.error("TIFF Processing Error:", err as any);
+        } catch (err: any) {
+            console.error("TIFF Processing Error:", err);
             return null;
         }
     }
@@ -525,8 +568,8 @@ export const WesternTool: React.FC = () => {
         try {
             const img = await processFile(files[i]);
             if (img) newImages.push(img);
-        } catch (err) {
-            console.error(`Failed to process file ${files[i].name}`, err as any);
+        } catch (err: any) {
+            console.error(`Failed to process file ${files[i].name}`, err);
         }
     }
 
@@ -1115,7 +1158,6 @@ export const WesternTool: React.FC = () => {
       )}
 
       {step === 3 && (
-        // ... (Step 3 View - Analysis Results - Unchanged) ...
         <div className="space-y-8">
             <div className="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                  <h3 className="text-lg font-bold text-slate-800">分析结果</h3>
