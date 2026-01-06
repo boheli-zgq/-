@@ -90,15 +90,21 @@
             <div class="qr-content-wrapper">
                 <div id="wechat" class="qr-panel active">
                     <div class="qr-frame">
-                        <!-- 修改了路径格式，并移除了 onerror，以确保优先加载本地图片 -->
-                        <img src="assets/wechat-pay.jpg" alt="WeChat Pay QR Code">
+                        <img 
+                            src="./assets/wechat-pay.jpg" 
+                            alt="WeChat Pay QR Code"
+                            onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'flex items-center justify-center h-full bg-slate-100 text-slate-400 text-xs p-4 text-center\'>Image not found<br>./assets/wechat-pay.jpg</div>'"
+                        >
                     </div>
                     <p class="qr-tip">Scan with WeChat</p>
                 </div>
                 <div id="alipay" class="qr-panel">
                     <div class="qr-frame">
-                        <!-- 修改了路径格式，并移除了 onerror -->
-                        <img src="assets/alipay.jpg" alt="Alipay QR Code">
+                        <img 
+                            src="./assets/alipay.jpg" 
+                            alt="Alipay QR Code"
+                            onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'flex items-center justify-center h-full bg-slate-100 text-slate-400 text-xs p-4 text-center\'>Image not found<br>./assets/alipay.jpg</div>'"
+                        >
                     </div>
                     <p class="qr-tip">Scan with Alipay</p>
                 </div>
