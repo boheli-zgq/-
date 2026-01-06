@@ -7,10 +7,11 @@ import { WesternTool } from './features/western/WesternTool';
 import { BcaTool } from './features/bca/BcaTool';
 import { TranswellTool } from './features/transwell/TranswellTool';
 import { ScratchTool } from './features/scratch/ScratchTool';
+import { ImmunofluorescenceTool } from './features/immunofluorescence/ImmunofluorescenceTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -38,6 +39,9 @@ function App() {
       )}
       {currentView === 'scratch' && (
         <ScratchTool />
+      )}
+      {currentView === 'if_analysis' && (
+        <ImmunofluorescenceTool />
       )}
 
       {/* Welcome Modal */}

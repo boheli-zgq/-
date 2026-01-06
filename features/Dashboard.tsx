@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -37,6 +37,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '输入标准品与样品的 OD 值，自动拟合标准曲线（线性/多项式），计算样品蛋白浓度。',
       icon: <Pipette size={32} className="text-orange-500" />,
       color: 'border-orange-200 hover:border-orange-500',
+      active: true
+    },
+    {
+      id: 'if_analysis',
+      title: '免疫荧光定量分析',
+      desc: '支持多通道荧光图片分析，计算平均荧光强度(MFI)、阳性面积占比及积分光密度。',
+      icon: <Aperture size={32} className="text-rose-500" />,
+      color: 'border-rose-200 hover:border-rose-500',
       active: true
     },
     {
