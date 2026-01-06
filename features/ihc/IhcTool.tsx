@@ -12,7 +12,7 @@ interface IhcImage {
   src: string;
   
   // Results
-  positiveAreaPct: number | null; // % Area
+  positiveAreaPct: number | null; // % Area (Pos / (Pos + Neg))
   meanDensity: number | null; // AOD
   hScore: number | null; // Area-based H-Score (0-300)
   
@@ -20,7 +20,7 @@ interface IhcImage {
   pixelsWeak: number;
   pixelsMod: number;
   pixelsStrong: number;
-  pixelsNeg: number;
+  pixelsNeg: number; // Nuclei only
   
   // Visualization
   mask: ImageData | null; // Color coded mask
@@ -32,16 +32,34 @@ interface IhcImage {
 }
 
 interface IhcSettings {
-  threshold: number; // 0-255: Cutoff for DAB intensity to be considered positive
+  threshold: number; // DAB Positive Threshold (0-255)
+  nucleiThreshold: number; // Hematoxylin (Blue) Threshold (0-255) - To filter background
   weakThreshold: number; // Threshold for Weak vs Mod
   strongThreshold: number; // Threshold for Mod vs Strong
 }
 
 // --- Color Deconvolution Algorithm (H&E DAB) ---
-// Vectors from Ruifrok and Johnston (2001)
-// Hematoxylin: [0.650, 0.704, 0.286]
-// DAB:         [0.268, 0.570, 0.776]
-// Residual:    [0.711, 0.423, 0.561]
+
+const invert3x3 = (m: number[]) => {
+    const det = m[0] * (m[4] * m[8] - m[7] * m[5]) -
+                m[1] * (m[3] * m[8] - m[5] * m[6]) +
+                m[2] * (m[3] * m[7] - m[4] * m[6]);
+    
+    if (Math.abs(det) < 1e-6) return null;
+    const invDet = 1 / det;
+
+    return [
+        (m[4] * m[8] - m[5] * m[7]) * invDet,
+        (m[2] * m[7] - m[1] * m[8]) * invDet,
+        (m[1] * m[5] - m[2] * m[4]) * invDet,
+        (m[5] * m[6] - m[3] * m[8]) * invDet,
+        (m[0] * m[8] - m[2] * m[6]) * invDet,
+        (m[2] * m[3] - m[0] * m[5]) * invDet,
+        (m[3] * m[7] - m[4] * m[6]) * invDet,
+        (m[1] * m[6] - m[0] * m[7]) * invDet,
+        (m[0] * m[4] - m[1] * m[3]) * invDet,
+    ];
+};
 
 const analyzeIhcImage = (
   img: HTMLImageElement,
@@ -74,21 +92,28 @@ const analyzeIhcImage = (
   const dabData = ctx.createImageData(canvas.width, canvas.height);
   const dabImg = dabData.data;
 
+  // Define Stain Vectors (Ruifrok and Johnston)
   // Normalized OD vectors
-  const MODx = [0.650, 0.704, 0.286]; // He
-  const MODy = [0.268, 0.570, 0.776]; // DAB
-  const MODz = [0.711, 0.423, 0.561]; // Res
+  // Hematoxylin (Blue)
+  const He = [0.650, 0.704, 0.286]; 
+  // DAB (Brown)
+  const DAB = [0.268, 0.570, 0.776]; 
+  // Residual
+  const Res = [0.711, 0.423, 0.561];
+
+  // Matrix M
+  const M = [
+      He[0], DAB[0], Res[0],
+      He[1], DAB[1], Res[1],
+      He[2], DAB[2], Res[2]
+  ];
+
+  const M_inv = invert3x3(M);
+  if (!M_inv) throw new Error("Color Deconvolution Matrix Error");
 
   let totalTissuePixels = 0;
   let totalDabOD = 0;
   let pxWeak = 0, pxMod = 0, pxStrong = 0, pxNeg = 0;
-
-  // Inverse elements for DAB (Row 2):
-  // Determinant = 0.226
-  const det = 0.226;
-  const Q21 = (MODx[1]*MODz[2] - MODx[2]*MODz[1]) / det; 
-  const Q22 = (MODx[2]*MODz[0] - MODx[0]*MODz[2]) / det;
-  const Q23 = (MODx[0]*MODz[1] - MODx[1]*MODz[0]) / det;
 
   for (let i = 0; i < len; i += 4) {
       const R = data[i];
@@ -96,39 +121,43 @@ const analyzeIhcImage = (
       const B = data[i+2];
       
       // 1. Convert RGB to Optical Density (OD)
+      // Small offset to avoid log(0)
       const rOD = -Math.log((R + 1) / 255);
       const gOD = -Math.log((G + 1) / 255);
       const bOD = -Math.log((B + 1) / 255);
 
-      // 2. Unmix
-      const dabValOD = rOD * Q21 + gOD * Q22 + bOD * Q23;
+      // 2. Unmix to get Stain Concentrations
+      // Hem = M_inv[0]*r + M_inv[1]*g + M_inv[2]*b
+      // DAB = M_inv[3]*r + M_inv[4]*g + M_inv[5]*b
       
-      // Scale for intensity (0-255)
-      const dabIntensity = Math.max(0, dabValOD * 200); 
+      const hemVal = rOD * M_inv[0] + gOD * M_inv[1] + bOD * M_inv[2];
+      const dabVal = rOD * M_inv[3] + gOD * M_inv[4] + bOD * M_inv[5];
+      
+      // Scale for intensity (0-255 range approximately)
+      const hemIntensity = Math.max(0, hemVal * 200);
+      const dabIntensity = Math.max(0, dabVal * 200);
 
-      // Identify Tissue (Noise filter)
-      if (rOD < 0.05 && gOD < 0.05 && bOD < 0.05) {
-          mask[i+3] = 0;
-          dabImg[i] = 255; dabImg[i+1] = 255; dabImg[i+2] = 255; dabImg[i+3] = 255; 
-          continue;
-      }
-
-      totalTissuePixels++;
-
-      // Visualization: DAB Channel (Grayscale, inverted so dark = high stain)
+      // Visualization: DAB Channel (Inverted grayscale)
       const visVal = Math.max(0, Math.min(255, 255 - dabIntensity));
       dabImg[i] = visVal;
       dabImg[i+1] = visVal;
       dabImg[i+2] = visVal;
       dabImg[i+3] = 255;
 
-      // Analysis & Mask Coloring
-      if (dabIntensity < settings.threshold) {
-          // Negative (Blue in mask - Nuclei only)
-          pxNeg++;
-          mask[i] = 0; mask[i+1] = 0; mask[i+2] = 255; mask[i+3] = 100; // Blue, semi-trans
-      } else {
-          // Positive
+      // 3. Classification
+      // A pixel is "Tissue" if it has enough stain (either Hem OR DAB)
+      const isTissue = (dabIntensity > settings.threshold) || (hemIntensity > settings.nucleiThreshold);
+
+      if (!isTissue) {
+          // Background - Transparent in mask
+          mask[i+3] = 0; 
+          continue;
+      }
+
+      totalTissuePixels++;
+
+      if (dabIntensity >= settings.threshold) {
+          // POSITIVE (Brown)
           totalDabOD += dabIntensity;
           
           if (dabIntensity < settings.weakThreshold) {
@@ -144,6 +173,12 @@ const analyzeIhcImage = (
               pxStrong++;
               mask[i] = 255; mask[i+1] = 0; mask[i+2] = 0; mask[i+3] = 150;
           }
+      } else {
+          // NEGATIVE (Blue)
+          // Only count as negative if it wasn't positive but IS tissue (i.e. Hem > NucleiThreshold)
+          pxNeg++;
+          // Blue mask
+          mask[i] = 0; mask[i+1] = 0; mask[i+2] = 255; mask[i+3] = 80; 
       }
   }
 
@@ -152,9 +187,9 @@ const analyzeIhcImage = (
   const meanDensity = totalPos > 0 ? totalDabOD / totalPos : 0;
   
   // Area-based H-Score
-  const pctWeak = (pxWeak / totalTissuePixels) * 100;
-  const pctMod = (pxMod / totalTissuePixels) * 100;
-  const pctStrong = (pxStrong / totalTissuePixels) * 100;
+  const pctWeak = totalTissuePixels > 0 ? (pxWeak / totalTissuePixels) * 100 : 0;
+  const pctMod = totalTissuePixels > 0 ? (pxMod / totalTissuePixels) * 100 : 0;
+  const pctStrong = totalTissuePixels > 0 ? (pxStrong / totalTissuePixels) * 100 : 0;
   const hScore = (1 * pctWeak) + (2 * pctMod) + (3 * pctStrong);
 
   return {
@@ -179,9 +214,10 @@ export const IhcTool: React.FC = () => {
   
   // Settings
   const [settings, setSettings] = useState<IhcSettings>({
-    threshold: 20, // Lower bound for positive
-    weakThreshold: 80, // Upper bound for weak (Low -> High intensity)
-    strongThreshold: 150 // Upper bound for mod
+    threshold: 20, // DAB Positive Lower Bound
+    nucleiThreshold: 10, // Hematoxylin Noise Floor (Higher = Less background counted as Neg)
+    weakThreshold: 80, 
+    strongThreshold: 150 
   });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -196,7 +232,6 @@ export const IhcTool: React.FC = () => {
 
     const newImages: IhcImage[] = [];
     for (let i = 0; i < files.length; i++) {
-        // Use shared image utils
         const src = await processImageFile(files[i]);
         if (src) {
             newImages.push({
@@ -438,15 +473,21 @@ export const IhcTool: React.FC = () => {
                    {/* View Mode Toggles */}
                    <div className="flex justify-center mb-3 bg-slate-100 p-1 rounded-lg">
                        <button onClick={() => setViewMode('original')} className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${viewMode === 'original' ? 'bg-white text-slate-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}>原图</button>
-                       <button onClick={() => setViewMode('dab')} className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${viewMode === 'dab' ? 'bg-white text-amber-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}>DAB 通道 (黑白)</button>
-                       <button onClick={() => setViewMode('mask')} className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${viewMode === 'mask' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}>分析遮罩 (Color)</button>
+                       <button onClick={() => setViewMode('dab')} className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${viewMode === 'dab' ? 'bg-white text-amber-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}>DAB 通道</button>
+                       <button onClick={() => setViewMode('mask')} className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${viewMode === 'mask' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}>彩色遮罩</button>
                    </div>
 
                    {/* Threshold Sliders */}
                    <div className="space-y-3 px-1">
-                       <div className="flex items-center gap-2">
-                           <span className="text-[10px] font-bold w-12 text-slate-500">阳性阈值</span>
-                           <input type="range" min="1" max="100" value={settings.threshold} onChange={e => setSettings(s => ({...s, threshold: parseInt(e.target.value)}))} className="flex-1 h-1.5 bg-slate-200 rounded-lg accent-blue-500" />
+                       <div className="flex items-center gap-2" title="Values lower than this are considered non-specific background">
+                           <span className="text-[10px] font-bold w-12 text-blue-600">细胞核阈值</span>
+                           <input type="range" min="1" max="100" value={settings.nucleiThreshold} onChange={e => setSettings(s => ({...s, nucleiThreshold: parseInt(e.target.value)}))} className="flex-1 h-1.5 bg-slate-200 rounded-lg accent-blue-500" />
+                           <span className="text-[10px] font-mono w-6">{settings.nucleiThreshold}</span>
+                       </div>
+                       
+                       <div className="flex items-center gap-2" title="Minimum brown intensity to be considered positive">
+                           <span className="text-[10px] font-bold w-12 text-slate-600">阳性阈值</span>
+                           <input type="range" min="1" max="100" value={settings.threshold} onChange={e => setSettings(s => ({...s, threshold: parseInt(e.target.value)}))} className="flex-1 h-1.5 bg-slate-200 rounded-lg accent-slate-600" />
                            <span className="text-[10px] font-mono w-6">{settings.threshold}</span>
                        </div>
                        <div className="flex items-center gap-2">
@@ -494,8 +535,9 @@ export const IhcTool: React.FC = () => {
                <div className="bg-blue-50 text-blue-800 text-xs p-3 rounded-lg flex gap-2 items-start border border-blue-100">
                      <Info size={14} className="mt-0.5 shrink-0" />
                      <p>
-                        系统使用颜色解卷积分离 DAB 信号。调整滑块以定义强度分级：<br/>
-                        <span className="text-blue-600 font-bold">蓝色(阴性)</span> &lt; 阳性阈值 &lt; <span className="text-yellow-600 font-bold">黄色(弱阳)</span> &lt; <span className="text-orange-500 font-bold">橙色(中阳)</span> &lt; <span className="text-red-500 font-bold">红色(强阳)</span>
+                        <strong>调节指南：</strong><br/>
+                        1. 调节 <b>"阳性阈值"</b>：控制棕色区域的识别灵敏度。<br/>
+                        2. 调节 <b>"细胞核阈值"</b>：如果阳性率偏低（分母太大），请调高此值以过滤浅色背景；如果漏掉了蓝色细胞核，请调低此值。
                      </p>
                </div>
            </div>
