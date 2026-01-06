@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Upload, Plus, Trash2, Maximize, Check, BarChart3, AlertCircle, RotateCcw, Activity, Image as ImageIcon, X, Download, Undo, Redo, Copy, Move, GripHorizontal, ScanLine, BoxSelect, Sliders, MousePointer2, Crop, CheckSquare, Merge, ArrowRightLeft } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ErrorBar, Cell } from 'recharts';
+import { Upload, Plus, Trash2, Maximize, Check, BarChart3, AlertCircle, RotateCcw, Activity, Image as ImageIcon, X, Download, Undo, Redo, Copy, Merge, BoxSelect, ScanLine, Crop, MousePointer2, Sliders, CheckSquare } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ErrorBar, Cell } from 'recharts';
+import { processImageFile } from '../../services/imageUtils';
 
 // --- Types ---
 
@@ -244,8 +245,6 @@ export const WesternTool: React.FC = () => {
     }
 
     // Smart Sort: Determine orientation
-    // If range of X > range of Y, assume Horizontal layout (sort by X)
-    // If range of Y > range of X, assume Vertical layout (sort by Y)
     let minBx = Infinity, maxBx = -Infinity, minBy = Infinity, maxBy = -Infinity;
     blobs.forEach(b => {
         if(b.x < minBx) minBx = b.x;
@@ -274,7 +273,6 @@ export const WesternTool: React.FC = () => {
     let updatedSamples = [...samples];
     const roiField = detectType === 'target' ? 'targetRoi' : 'refRoi';
 
-    // Capture the current image ID to ensure it is used correctly in the loop
     const currentImageId = activeImageId;
 
     if (matchExisting && samples.length > 0) {
@@ -291,13 +289,11 @@ export const WesternTool: React.FC = () => {
             };
 
             if (index < updatedSamples.length) {
-                // Update existing
                 updatedSamples[index] = {
                     ...updatedSamples[index],
                     [roiField]: roi
                 };
             } else {
-                // Create new if more bands than samples
                 updatedSamples.push({
                     id: Date.now().toString() + index + Math.random().toString().slice(2,5),
                     name: `Sample ${updatedSamples.length + 1}`,
@@ -309,7 +305,6 @@ export const WesternTool: React.FC = () => {
         });
         updateSamples(updatedSamples);
     } else {
-        // Original Mode: Create NEW samples or Append
         const newSamples: WbSample[] = blobs.map((blob, index) => {
             const centerX = blob.x + blob.w / 2;
             const centerY = blob.y + blob.h / 2;
@@ -330,10 +325,8 @@ export const WesternTool: React.FC = () => {
         });
 
         if (bounds) {
-             // Region mode: Just append if not matching
              updateSamples([...samples, ...newSamples]);
         } else {
-            // Full auto: ask to replace
             if (confirm(`检测到 ${blobs.length} 个条带。是否清空当前列表并重新生成？\n(取消则追加)`)) {
                 updateSamples(newSamples);
             } else {
@@ -375,7 +368,6 @@ export const WesternTool: React.FC = () => {
       const groupName = prompt("请输入新的分组名称 (例如: Treated):", "Group 1");
       if (!groupName) return;
       const newSamples = samples.map(s => {
-          // If samples are selected, only update those. Otherwise update all active on image.
           if (selectedSampleIds.size > 0) {
               if (selectedSampleIds.has(s.id)) return { ...s, group: groupName };
               return s;
@@ -386,7 +378,7 @@ export const WesternTool: React.FC = () => {
           }
       });
       updateSamples(newSamples);
-      setSelectedSampleIds(new Set()); // Clear selection
+      setSelectedSampleIds(new Set()); 
   };
 
   // --- Selection & Merging Logic ---
@@ -401,8 +393,6 @@ export const WesternTool: React.FC = () => {
       if (selectedSampleIds.size < 2) return;
       
       const ids = Array.from(selectedSampleIds);
-      // We will merge into the first selected sample (base)
-      // and try to fill missing ROIs from subsequent samples, then delete subsequent.
       const baseId = ids[0];
       const baseSample = samples.find(s => s.id === baseId);
       if (!baseSample) return;
@@ -420,7 +410,6 @@ export const WesternTool: React.FC = () => {
               if (!mergedSample.refRoi && otherSample.refRoi) {
                   mergedSample.refRoi = otherSample.refRoi;
               }
-              // If conflict, we currently keep Base. 
               idsToRemove.push(otherId);
           }
       }
@@ -458,109 +447,6 @@ export const WesternTool: React.FC = () => {
 
   // --- Step 1: Logic (Upload) ---
   
-  // Helper to ensure UTIF is loaded if missing
-  const ensureUtifLoaded = async () => {
-      if ((window as any).UTIF) return true;
-      
-      return new Promise<boolean>((resolve) => {
-          console.log("UTIF not detected, attempting dynamic load...");
-          
-          // Try loading from fallback unpkg first
-          const script = document.createElement('script');
-          script.src = "https://unpkg.com/utif@3.1.0/UTIF.js";
-          script.crossOrigin = "anonymous";
-          script.onload = () => {
-              console.log("UTIF loaded via unpkg");
-              resolve(true);
-          };
-          script.onerror = () => {
-              // Try another fallback if unpkg fails
-              const script2 = document.createElement('script');
-              script2.src = "https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js";
-              script2.onload = () => {
-                  console.log("UTIF loaded via jsdelivr");
-                  resolve(true);
-              };
-              script2.onerror = () => {
-                  console.error("Failed to load UTIF from all sources");
-                  resolve(false);
-              };
-              document.body.appendChild(script2);
-          };
-          document.body.appendChild(script);
-      });
-  };
-
-  const processFile = async (file: File): Promise<WbImage | null> => {
-    const isTiff = file.type === 'image/tiff' || 
-                   file.type === 'image/x-tiff' ||
-                   file.name.toLowerCase().endsWith('.tif') || 
-                   file.name.toLowerCase().endsWith('.tiff');
-    
-    if (!isTiff) {
-        return {
-            id: Math.random().toString(36).substring(2, 11),
-            name: file.name,
-            src: URL.createObjectURL(file)
-        };
-    }
-
-    if (isTiff) {
-        try {
-            let utifLib = (window as any).UTIF;
-            
-            // If library is missing, try to load it dynamically
-            if (!utifLib) {
-                const loaded = await ensureUtifLoaded();
-                if (loaded) {
-                    utifLib = (window as any).UTIF;
-                }
-            }
-
-            if (!utifLib) {
-                console.error("UTIF library not found on window object.");
-                alert("无法加载 TIFF 处理库。请检查网络连接，或尝试上传 JPG/PNG 格式的图片。");
-                return null;
-            }
-
-            const buffer = await file.arrayBuffer();
-            const ifds = utifLib.decode(buffer);
-            if (ifds && ifds.length > 0) {
-                const page = ifds[0];
-                utifLib.decodeImage(buffer, page);
-                const rgba = utifLib.toRGBA8(page);
-                const canvas = document.createElement('canvas');
-                canvas.width = page.width;
-                canvas.height = page.height;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    const imageData = ctx.createImageData(page.width, page.height);
-                    imageData.data.set(rgba);
-                    ctx.putImageData(imageData, 0, 0);
-                    return new Promise<WbImage | null>((resolve) => {
-                        canvas.toBlob((blob) => {
-                            if (blob) {
-                                resolve({
-                                    id: Math.random().toString(36).substring(2, 11),
-                                    name: file.name,
-                                    src: URL.createObjectURL(blob)
-                                });
-                            } else {
-                                resolve(null);
-                            }
-                        }, 'image/png');
-                    });
-                }
-            }
-        } catch (err: any) {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.error("TIFF Processing Error:", msg);
-            return null;
-        }
-    }
-    return null;
-  };
-
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -569,12 +455,17 @@ export const WesternTool: React.FC = () => {
     const newImages: WbImage[] = [];
 
     for (let i = 0; i < files.length; i++) {
-        try {
-            const img = await processFile(files[i]);
-            if (img) newImages.push(img);
-        } catch (err: any) {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.error(`Failed to process file ${files[i].name}`, msg);
+        // Use shared image utils
+        const file = files.item(i);
+        if (file) {
+            const src = await processImageFile(file);
+            if (src) {
+                newImages.push({
+                    id: Math.random().toString(36).substring(2, 11),
+                    name: file.name,
+                    src: src
+                });
+            }
         }
     }
 
@@ -583,8 +474,6 @@ export const WesternTool: React.FC = () => {
         if (!activeImageId) {
             setActiveImageId(newImages[0].id);
         }
-    } else {
-        alert("无法处理部分或所有文件，请确保文件格式正确 (JPG, PNG, TIFF)。");
     }
     
     setIsProcessing(false);
@@ -981,7 +870,6 @@ export const WesternTool: React.FC = () => {
       </div>
 
       {step === 1 && (
-        // ... (Step 1 View - Upload - Unchanged) ...
         <div className="space-y-8">
             <div className="bg-white rounded-2xl p-12 border-2 border-dashed border-slate-300 text-center hover:border-emerald-400 transition-colors">
                 <div className="bg-emerald-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { ScanFace, Upload, Trash2, Sliders, Play, RefreshCw, Eye, Download, Info, BarChart3, Layers, Palette } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
+import { processImageFile } from '../../services/imageUtils';
 
 // --- Types ---
 
@@ -35,66 +36,6 @@ interface IhcSettings {
   weakThreshold: number; // Threshold for Weak vs Mod
   strongThreshold: number; // Threshold for Mod vs Strong
 }
-
-// --- File Helpers (Reuse UTIF logic) ---
-
-const ensureUtifLoaded = async () => {
-    if ((window as any).UTIF) return true;
-    return new Promise<boolean>((resolve) => {
-        const script = document.createElement('script');
-        script.src = "https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js";
-        script.crossOrigin = "anonymous";
-        script.onload = () => resolve(true);
-        script.onerror = () => {
-             const script2 = document.createElement('script');
-             script2.src = "https://unpkg.com/utif@3.1.0/UTIF.js";
-             script2.onload = () => resolve(true);
-             script2.onerror = () => resolve(false);
-             document.body.appendChild(script2);
-        };
-        document.body.appendChild(script);
-    });
-};
-
-const processFile = async (file: File): Promise<string | null> => {
-    const isTiff = file.type === 'image/tiff' || 
-                   file.type === 'image/x-tiff' ||
-                   file.name.toLowerCase().endsWith('.tif') || 
-                   file.name.toLowerCase().endsWith('.tiff');
-    
-    if (!isTiff) return URL.createObjectURL(file);
-
-    try {
-        const loaded = await ensureUtifLoaded();
-        if (!loaded) return null;
-        
-        const utifLib = (window as any).UTIF;
-        const buffer = await file.arrayBuffer();
-        const ifds = utifLib.decode(buffer);
-        if (ifds && ifds.length > 0) {
-            const page = ifds[0];
-            utifLib.decodeImage(buffer, page);
-            const rgba = utifLib.toRGBA8(page);
-            const canvas = document.createElement('canvas');
-            canvas.width = page.width;
-            canvas.height = page.height;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const imageData = ctx.createImageData(page.width, page.height);
-                imageData.data.set(rgba);
-                ctx.putImageData(imageData, 0, 0);
-                return new Promise((resolve) => {
-                    canvas.toBlob((blob) => {
-                        resolve(blob ? URL.createObjectURL(blob) : null);
-                    }, 'image/png');
-                });
-            }
-        }
-    } catch (e) {
-        console.error("TIFF processing error", e);
-    }
-    return null;
-};
 
 // --- Color Deconvolution Algorithm (H&E DAB) ---
 // Vectors from Ruifrok and Johnston (2001)
@@ -133,29 +74,21 @@ const analyzeIhcImage = (
   const dabData = ctx.createImageData(canvas.width, canvas.height);
   const dabImg = dabData.data;
 
-  // Deconvolution Matrix (Inverse of Stain Matrix)
-  // Simplified logic for performance: We project RGB OD onto DAB vector.
-  // Proper unmixing involves solving the linear system. 
-  // Given the complexity of implementing matrix inversion in raw JS without mathjs,
-  // we will use the specific projection coefficients for H&E DAB.
-  
   // Normalized OD vectors
   const MODx = [0.650, 0.704, 0.286]; // He
   const MODy = [0.268, 0.570, 0.776]; // DAB
   const MODz = [0.711, 0.423, 0.561]; // Res
 
-  // Determine matrix inverse (Q) manually for these fixed vectors to save computation
-  // D = det(MOD) ~ 0.2
-  // Q = inv(MOD)
-  // For standard H&E DAB, the unmixing formulas (approx) are:
-  // DAB_OD = -0.58 * R_od + 0.69 * G_od + 0.90 * B_od (Illustrative, needs exact inverse)
-  
-  // Let's implement the generic pixel-wise unmixing loop using geometric calculation for accuracy
-  // Or simply: DAB_OD is proportional to how much the pixel OD aligns with DAB vector
-  
   let totalTissuePixels = 0;
   let totalDabOD = 0;
   let pxWeak = 0, pxMod = 0, pxStrong = 0, pxNeg = 0;
+
+  // Inverse elements for DAB (Row 2):
+  // Determinant = 0.226
+  const det = 0.226;
+  const Q21 = (MODx[1]*MODz[2] - MODx[2]*MODz[1]) / det; 
+  const Q22 = (MODx[2]*MODz[0] - MODx[0]*MODz[2]) / det;
+  const Q23 = (MODx[0]*MODz[1] - MODx[1]*MODz[0]) / det;
 
   for (let i = 0; i < len; i += 4) {
       const R = data[i];
@@ -163,45 +96,20 @@ const analyzeIhcImage = (
       const B = data[i+2];
       
       // 1. Convert RGB to Optical Density (OD)
-      // Add 1 to avoid log(0)
       const rOD = -Math.log((R + 1) / 255);
       const gOD = -Math.log((G + 1) / 255);
       const bOD = -Math.log((B + 1) / 255);
 
-      // 2. Unmix (Simplified separation for DAB channel)
-      // This is a simplified projection. Ideally use the inverse matrix row for DAB.
-      // Row 2 of Inverse Matrix for standard H&E DAB:
-      // q21 = -0.522, q22 = 0.866, q23 = 0.222 (These are approx values for derivation)
-      // Let's use a standard approximation for DAB extraction:
-      // DAB ~ (Blue is high in DAB) + (Green is med) - (Red is low)
-      // A robust approximation for DAB intensity (0-255) without full matrix:
-      // We know DAB is Brown. Blue channel is absorbed most.
-      
-      // Let's implement standard Ruifrok-Johnston unmixing properly
-      // Determinant = 0.226
-      const det = 0.226;
-      // Inverse elements for DAB (Row 2):
-      const Q21 = (MODx[1]*MODz[2] - MODx[2]*MODz[1]) / det; // (0.704*0.561 - 0.286*0.423) / 0.226
-      const Q22 = (MODx[2]*MODz[0] - MODx[0]*MODz[2]) / det;
-      const Q23 = (MODx[0]*MODz[1] - MODx[1]*MODz[0]) / det;
-      
-      // Calculate DAB OD amount
+      // 2. Unmix
       const dabValOD = rOD * Q21 + gOD * Q22 + bOD * Q23;
       
-      // Convert back to 0-255 scale for display/thresholding (0 = White/No Stain, 255 = Dark Brown)
-      // Intensity = 255 * exp(-OD) -- Wait, we want "Amount of Stain" which is linear with OD.
-      // Let's scale OD to 0-255 range for thresholds. 
-      // Max theoretical OD is ~2.5. Let's say max stain = 255.
-      // amount = dabValOD * (255 / 2.0) approx
-      
-      const dabIntensity = Math.max(0, dabValOD * 200); // Scaling factor to make thresholds intuitive (0-255)
+      // Scale for intensity (0-255)
+      const dabIntensity = Math.max(0, dabValOD * 200); 
 
       // Identify Tissue (Noise filter)
-      // If pixel is white (low OD in all channels), skip
       if (rOD < 0.05 && gOD < 0.05 && bOD < 0.05) {
-          // Background (transparent in mask)
           mask[i+3] = 0;
-          dabImg[i] = 255; dabImg[i+1] = 255; dabImg[i+2] = 255; dabImg[i+3] = 255; // White in DAB view
+          dabImg[i] = 255; dabImg[i+1] = 255; dabImg[i+2] = 255; dabImg[i+3] = 255; 
           continue;
       }
 
@@ -243,8 +151,7 @@ const analyzeIhcImage = (
   const positiveAreaPct = totalTissuePixels > 0 ? (totalPos / totalTissuePixels) * 100 : 0;
   const meanDensity = totalPos > 0 ? totalDabOD / totalPos : 0;
   
-  // Area-based H-Score: (1*%Weak + 2*%Mod + 3*%Strong) based on TOTAL TISSUE area
-  // Range 0 - 300
+  // Area-based H-Score
   const pctWeak = (pxWeak / totalTissuePixels) * 100;
   const pctMod = (pxMod / totalTissuePixels) * 100;
   const pctStrong = (pxStrong / totalTissuePixels) * 100;
@@ -289,12 +196,12 @@ export const IhcTool: React.FC = () => {
 
     const newImages: IhcImage[] = [];
     for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const src = await processFile(file);
+        // Use shared image utils
+        const src = await processImageFile(files[i]);
         if (src) {
             newImages.push({
               id: Date.now() + i + Math.random().toString(),
-              name: file.name,
+              name: files[i].name,
               group: 'Group 1',
               src: src,
               positiveAreaPct: null,

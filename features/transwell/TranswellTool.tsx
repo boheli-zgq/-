@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Target, Upload, Image as ImageIcon, Plus, Trash2, Sliders, Play, RefreshCw, Eye, Download, Info, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ErrorBar, Cell } from 'recharts';
+import { processImageFile } from '../../services/imageUtils';
 
 // --- Types ---
 
@@ -28,74 +29,6 @@ interface ProcessSettings {
   maxSize: number; // max pixel count (to avoid artifacts)
   sensitivity: number; // 1-10
 }
-
-// --- Helpers for File Processing (TIFF Support) ---
-
-const ensureUtifLoaded = async () => {
-    if ((window as any).UTIF) return true;
-    
-    return new Promise<boolean>((resolve) => {
-        // Try jsdelivr first
-        const script = document.createElement('script');
-        script.src = "https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js";
-        script.crossOrigin = "anonymous";
-        script.onload = () => resolve(true);
-        script.onerror = () => {
-             // Try fallback unpkg
-             const script2 = document.createElement('script');
-             script2.src = "https://unpkg.com/utif@3.1.0/UTIF.js";
-             script2.onload = () => resolve(true);
-             script2.onerror = () => resolve(false);
-             document.body.appendChild(script2);
-        };
-        document.body.appendChild(script);
-    });
-};
-
-const processFile = async (file: File): Promise<string | null> => {
-    const isTiff = file.type === 'image/tiff' || 
-                   file.type === 'image/x-tiff' ||
-                   file.name.toLowerCase().endsWith('.tif') || 
-                   file.name.toLowerCase().endsWith('.tiff');
-    
-    if (!isTiff) {
-        return URL.createObjectURL(file);
-    }
-
-    try {
-        const loaded = await ensureUtifLoaded();
-        if (!loaded) {
-            console.error("UTIF library failed to load");
-            return null;
-        }
-        
-        const utifLib = (window as any).UTIF;
-        const buffer = await file.arrayBuffer();
-        const ifds = utifLib.decode(buffer);
-        if (ifds && ifds.length > 0) {
-            const page = ifds[0];
-            utifLib.decodeImage(buffer, page);
-            const rgba = utifLib.toRGBA8(page);
-            const canvas = document.createElement('canvas');
-            canvas.width = page.width;
-            canvas.height = page.height;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const imageData = ctx.createImageData(page.width, page.height);
-                imageData.data.set(rgba);
-                ctx.putImageData(imageData, 0, 0);
-                return new Promise((resolve) => {
-                    canvas.toBlob((blob) => {
-                        resolve(blob ? URL.createObjectURL(blob) : null);
-                    }, 'image/png');
-                });
-            }
-        }
-    } catch (e) {
-        console.error("TIFF processing error", e);
-    }
-    return null;
-};
 
 // --- Image Processing Logic (Web Worker alternative running on main thread for simplicity) ---
 
@@ -218,12 +151,12 @@ export const TranswellTool: React.FC = () => {
     const newImages: TranswellImage[] = [];
 
     for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const src = await processFile(file);
+        // Use shared image utils
+        const src = await processImageFile(files[i]);
         if (src) {
             newImages.push({
               id: Date.now() + i + Math.random().toString(),
-              name: file.name,
+              name: files[i].name,
               group: 'Group 1',
               src: src,
               count: null,
