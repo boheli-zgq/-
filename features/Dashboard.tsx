@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -16,19 +16,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       active: true
     },
     {
-      id: 'molarity',
-      title: '摩尔浓度计算器',
-      desc: '快速计算溶液配制所需的质量或体积。支持常用试剂预设与稀释计算。',
-      icon: <FlaskConical size={32} className="text-purple-500" />,
-      color: 'border-purple-200 hover:border-purple-500',
-      active: true
-    },
-    {
       id: 'western',
       title: 'Western Blot 灰度分析',
       desc: '上传条带图片，手动框选目标蛋白与内参蛋白，自动计算相对灰度值并归一化。',
       icon: <Activity size={32} className="text-emerald-500" />,
       color: 'border-emerald-200 hover:border-emerald-500',
+      active: true
+    },
+    {
+      id: 'colony',
+      title: '克隆形成定量分析',
+      desc: '自动识别培养皿中的细胞克隆团。支持圆形掩膜去除边缘干扰，批量统计克隆数量。',
+      icon: <Disc size={32} className="text-fuchsia-500" />,
+      color: 'border-fuchsia-200 hover:border-fuchsia-500',
+      active: true
+    },
+    {
+      id: 'transfection',
+      title: '病毒转染计算器',
+      desc: '根据 MOI 和病毒滴度，计算所需的病毒体积。包含微量体积稀释建议与毒性预警。',
+      icon: <Biohazard size={32} className="text-violet-600" />,
+      color: 'border-violet-200 hover:border-violet-500',
       active: true
     },
     {
@@ -72,19 +80,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       active: true
     },
     {
+      id: 'molarity',
+      title: '摩尔浓度计算器',
+      desc: '快速计算溶液配制所需的质量或体积。支持常用试剂预设与稀释计算。',
+      icon: <FlaskConical size={32} className="text-purple-500" />,
+      color: 'border-purple-200 hover:border-purple-500',
+      active: true
+    },
+    {
       id: 'cell_plating',
       title: '细胞铺板计算器',
       desc: '根据细胞计数结果，快速计算不同规格培养板（6孔、24孔、96孔等）的铺板体积与密度。',
       icon: <Grid3x3 size={32} className="text-pink-500" />,
       color: 'border-pink-200 hover:border-pink-500',
-      active: false
+      active: true
     },
   ];
 
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="text-center max-w-2xl mx-auto space-y-4">
-        <h2 className="text-3xl font-bold text-slate-800">选择您的实验工具</h2>
+        <h2 className="text-3xl font-bold text-slate-800">欢迎来到科研的世界</h2>
         <p className="text-slate-500">高效、精准、可视化的数据分析体验，助力科研发现。</p>
       </div>
 

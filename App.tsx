@@ -9,10 +9,13 @@ import { TranswellTool } from './features/transwell/TranswellTool';
 import { ScratchTool } from './features/scratch/ScratchTool';
 import { ImmunofluorescenceTool } from './features/immunofluorescence/ImmunofluorescenceTool';
 import { EduTool } from './features/edu/EduTool';
+import { ColonyTool } from './features/colony/ColonyTool';
+import { CellPlatingTool } from './features/cell_plating/CellPlatingTool';
+import { TransfectionTool } from './features/transfection/TransfectionTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -46,6 +49,15 @@ function App() {
       )}
       {currentView === 'edu' && (
         <EduTool />
+      )}
+      {currentView === 'colony' && (
+        <ColonyTool />
+      )}
+      {currentView === 'cell_plating' && (
+        <CellPlatingTool />
+      )}
+      {currentView === 'transfection' && (
+        <TransfectionTool />
       )}
 
       {/* Welcome Modal */}
