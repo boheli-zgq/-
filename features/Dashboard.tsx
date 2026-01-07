@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -34,6 +34,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '上传条带图片，手动框选目标蛋白与内参蛋白，自动计算相对灰度值并归一化。',
       icon: <Activity size={32} className="text-emerald-500" />,
       color: 'border-emerald-200 hover:border-emerald-500',
+      active: true
+    },
+    {
+      id: 'western_design',
+      title: 'Western Blot 实验设计',
+      desc: '内参/标签查询、凝胶浓度计算与电泳条带模拟。可视化辅助 Marker 选择与上样设计。',
+      icon: <Layers size={32} className="text-indigo-600" />,
+      color: 'border-indigo-200 hover:border-indigo-500',
       active: true
     },
     {
