@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Layers, Search, FlaskConical, Tag, Plus, Trash2, ArrowRight, MousePointer2, Copy } from 'lucide-react';
+import { Layers, Search, FlaskConical, Tag, Plus, Trash2, ArrowRight, MousePointer2, Copy, Info } from 'lucide-react';
 
 // --- Data Constants ---
 
@@ -93,9 +93,9 @@ export const WesternDesignTool: React.FC = () => {
   const [markerType, setMarkerType] = useState<'broad' | 'mid'>('broad');
   const [samples, setSamples] = useState<{ id: string, name: string, group: string, mw: number }[]>([
     { id: '1', name: 'Sample 1', group: 'Control', mw: 42 },
-    { id: '2', name: 'Sample 2', group: 'Control', mw: 42 },
-    { id: '3', name: 'Sample 3', group: 'Treated', mw: 85 },
-    { id: '4', name: 'Sample 4', group: 'Treated', mw: 85 },
+    { id: '2', name: 'Sample 1', group: 'Control', mw: 36 }, // Same sample, distinct band
+    { id: '3', name: 'Sample 2', group: 'Treated', mw: 42 },
+    { id: '4', name: 'Sample 2', group: 'Treated', mw: 85 },
   ]);
   
   // Input State
@@ -112,6 +112,22 @@ export const WesternDesignTool: React.FC = () => {
   const filteredTags = PROTEIN_TAGS.filter(t => 
     t.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Computed: Merged Lanes
+  // Groups samples with same 'group' and 'name' into one lane with multiple bands
+  const mergedLanes = useMemo(() => {
+      const map = new Map<string, { id: string, name: string, group: string, mws: number[] }>();
+      
+      samples.forEach(s => {
+          const key = `${s.group}::${s.name}`;
+          if (!map.has(key)) {
+              map.set(key, { id: s.id, name: s.name, group: s.group, mws: [] });
+          }
+          map.get(key)!.mws.push(s.mw);
+      });
+      
+      return Array.from(map.values());
+  }, [samples]);
 
   // Handlers
   const addSample = () => {
@@ -207,7 +223,7 @@ export const WesternDesignTool: React.FC = () => {
                                 </div>
                                 
                                 <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
-                                    <span className="text-xs font-bold text-indigo-700 block mb-1">推荐分离胶浓度 (Based on Sample 1)</span>
+                                    <span className="text-xs font-bold text-indigo-700 block mb-1">推荐分离胶浓度 (Based on first target)</span>
                                     <div className="text-2xl font-mono font-bold text-indigo-600">{recommendedGel}</div>
                                     <p className="text-[10px] text-indigo-400 mt-1">
                                         Target ~{primaryTargetMw} kDa. 
@@ -218,7 +234,10 @@ export const WesternDesignTool: React.FC = () => {
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1.5">添加样品 (分组 - 样本名 - MW)</label>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 flex justify-between">
+                                        添加样品
+                                        <span className="text-[10px] font-normal text-slate-400 flex items-center gap-1"><Info size={10}/> 同名同组自动合并泳道</span>
+                                    </label>
                                     <div className="flex gap-2">
                                         <input 
                                             type="text" 
@@ -318,50 +337,54 @@ export const WesternDesignTool: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Lane 2+: Samples */}
-                                {samples.map((s, idx) => (
-                                    <div key={s.id} className="flex-1 min-w-[70px] border-r border-slate-200/60 relative group bg-white hover:bg-slate-50/50 transition-colors">
+                                {/* Lane 2+: Merged Samples */}
+                                {mergedLanes.map((lane, idx) => (
+                                    <div key={lane.id} className="flex-1 min-w-[70px] border-r border-slate-200/60 relative group bg-white hover:bg-slate-50/50 transition-colors">
                                         {/* Header */}
                                         <div className="h-14 border-b border-slate-200 bg-slate-50 flex flex-col items-center justify-center px-1 gap-0.5">
-                                            <span className="text-[10px] font-bold text-indigo-500 truncate w-full text-center tracking-tight bg-indigo-50/50 rounded-sm px-1">{s.group}</span>
-                                            <span className="text-xs font-medium text-slate-700 truncate w-full text-center" title={s.name}>{s.name}</span>
+                                            <span className="text-[10px] font-bold text-indigo-500 truncate w-full text-center tracking-tight bg-indigo-50/50 rounded-sm px-1">{lane.group}</span>
+                                            <span className="text-xs font-medium text-slate-700 truncate w-full text-center" title={lane.name}>{lane.name}</span>
                                         </div>
                                         
                                         {/* Lane Body */}
                                         <div className="relative flex-1 w-full h-[calc(100%-56px)]">
-                                            {/* Simulated Band (Coomassie/Film Style) */}
-                                            <div 
-                                                className="absolute left-3 right-3 h-2 rounded-[1px]"
-                                                style={{ 
-                                                    top: `${getRelativeY(s.mw)}%`,
-                                                    // Realistic band gradient (dark center, faded edges)
-                                                    background: 'linear-gradient(90deg, rgba(0,0,0,0.5) 0%, rgba(30,30,30,0.9) 30%, rgba(30,30,30,0.9) 70%, rgba(0,0,0,0.5) 100%)',
-                                                    boxShadow: '0 0 3px 1px rgba(0,0,0,0.1)',
-                                                    filter: 'blur(0.5px)',
-                                                    transform: 'translateY(-50%)'
-                                                }}
-                                                title={`${s.name}: ${s.mw} kDa`}
-                                            ></div>
-                                            
-                                            {/* Alignment Guide (Red Dashed Line) */}
-                                            <div 
-                                                className="absolute right-full w-[1000px] border-t border-dashed border-red-300 pointer-events-none opacity-0 group-hover:opacity-100 z-0 transition-opacity"
-                                                style={{ top: `${getRelativeY(s.mw)}%` }}
-                                            ></div>
+                                            {lane.mws.map((mw, i) => (
+                                                <React.Fragment key={i}>
+                                                    {/* Simulated Band (Coomassie/Film Style) */}
+                                                    <div 
+                                                        className="absolute left-3 right-3 h-2 rounded-[1px]"
+                                                        style={{ 
+                                                            top: `${getRelativeY(mw)}%`,
+                                                            // Realistic band gradient (dark center, faded edges)
+                                                            background: 'linear-gradient(90deg, rgba(0,0,0,0.5) 0%, rgba(30,30,30,0.9) 30%, rgba(30,30,30,0.9) 70%, rgba(0,0,0,0.5) 100%)',
+                                                            boxShadow: '0 0 3px 1px rgba(0,0,0,0.1)',
+                                                            filter: 'blur(0.5px)',
+                                                            transform: 'translateY(-50%)'
+                                                        }}
+                                                        title={`${lane.name}: ${mw} kDa`}
+                                                    ></div>
+                                                    
+                                                    {/* Alignment Guide (Red Dashed Line) */}
+                                                    <div 
+                                                        className="absolute right-full w-[1000px] border-t border-dashed border-red-300 pointer-events-none opacity-0 group-hover:opacity-100 z-0 transition-opacity"
+                                                        style={{ top: `${getRelativeY(mw)}%` }}
+                                                    ></div>
 
-                                            {/* MW Label on Hover */}
-                                            <span 
-                                                className="absolute left-1/2 -translate-x-1/2 -mt-5 text-[10px] font-mono font-bold text-slate-700 bg-white border border-slate-200 shadow-sm px-1.5 rounded opacity-0 group-hover:opacity-100 transition-all z-20 pointer-events-none whitespace-nowrap"
-                                                style={{ top: `${getRelativeY(s.mw)}%` }}
-                                            >
-                                                {s.mw} kDa
-                                            </span>
+                                                    {/* MW Label on Hover */}
+                                                    <span 
+                                                        className="absolute left-1/2 -translate-x-1/2 -mt-5 text-[10px] font-mono font-bold text-slate-700 bg-white border border-slate-200 shadow-sm px-1.5 rounded opacity-0 group-hover:opacity-100 transition-all z-20 pointer-events-none whitespace-nowrap"
+                                                        style={{ top: `${getRelativeY(mw)}%` }}
+                                                    >
+                                                        {mw} kDa
+                                                    </span>
+                                                </React.Fragment>
+                                            ))}
                                         </div>
                                     </div>
                                 ))}
 
                                 {/* Empty Lane Filler */}
-                                {[...Array(Math.max(0, 5 - samples.length))].map((_, i) => (
+                                {[...Array(Math.max(0, 5 - mergedLanes.length))].map((_, i) => (
                                     <div key={`empty-${i}`} className="flex-1 min-w-[70px] border-r border-slate-200/60 bg-slate-50/30"></div>
                                 ))}
                             </div>

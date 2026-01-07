@@ -83,7 +83,7 @@ const calculateDensityFromImage = (
         totalDensity += density;
       }
       return totalDensity;
-  } catch (e: any) {
+  } catch (e: unknown) {
       console.warn("Error calculating density (ROI likely out of bounds)", e);
       return 0;
   }
@@ -456,15 +456,19 @@ export const WesternTool: React.FC = () => {
 
     for (let i = 0; i < files.length; i++) {
         // Use shared image utils
-        const file = files[i];
+        const file = files.item(i);
         if (file) {
-            const src = await processImageFile(file);
-            if (src) {
-                newImages.push({
-                    id: Math.random().toString(36).substring(2, 11),
-                    name: file.name,
-                    src: src
-                });
+            try {
+                const src = await processImageFile(file);
+                if (src) {
+                    newImages.push({
+                        id: Math.random().toString(36).substring(2, 11),
+                        name: String(file.name),
+                        src: src
+                    });
+                }
+            } catch (error) {
+                console.error("Error processing file", error);
             }
         }
     }
