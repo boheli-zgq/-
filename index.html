@@ -65,11 +65,19 @@
     <div id="root" class="flex items-center justify-center min-h-screen text-slate-400">Loading SciTools Hub...</div>
 
     <!-- 打赏功能 HTML (原生实现，独立于 React) -->
-    <!-- 1. 悬浮按钮 -->
-    <button id="support-btn" class="academic-float-btn" aria-label="支持科研开发">
-        <span class="icon">☕</span>
-        <span class="text">支持科研开发</span>
-    </button>
+    <!-- 1. 悬浮组件 (New Design) -->
+    <div id="support-btn" class="support-widget group" role="button" aria-label="欢迎打赏">
+        <div class="widget-icon">
+            <span class="emoji">☕</span>
+        </div>
+        <div class="widget-content">
+            <div class="widget-title">欢迎打赏</div>
+            <div class="widget-subtitle">助力工具持续更新</div>
+        </div>
+        <div class="widget-arrow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </div>
+    </div>
 
     <!-- 2. 模态框 -->
     <div id="donation-modal" class="modal-overlay">
@@ -125,44 +133,93 @@
         --accent-color: #2e2e2e;
         --border-color: #e0e0e0;
         --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.08);
+        --shadow-card: 0 10px 40px -10px rgba(0, 0, 0, 0.15);
         --wechat-green: #09bb07;
         --alipay-blue: #1677ff;
     }
 
-    .academic-float-btn {
+    /* Support Widget Styles */
+    .support-widget {
         position: fixed;
-        bottom: 30px;
-        right: 30px;
-        background: var(--modal-bg);
-        color: var(--text-main);
-        border: 1px solid var(--border-color);
-        padding: 12px 24px; /* Increased padding */
-        border-radius: 50px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        bottom: 32px;
+        right: 32px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        padding: 16px 20px;
+        border-radius: 20px;
+        box-shadow: var(--shadow-card);
+        border: 1px solid rgba(255, 255, 255, 0.8);
         cursor: pointer;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        font-size: 16px; /* Increased font size */
-        font-weight: 600;
         display: flex;
         align-items: center;
-        gap: 10px;
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        gap: 16px;
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         z-index: 1000;
+        max-width: 300px;
     }
-    .academic-float-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-        border-color: #d0d0d0;
-    }
-    .academic-float-btn .icon { font-size: 20px; } /* Increased icon size */
 
+    .support-widget:hover {
+        transform: translateY(-6px) scale(1.02);
+        box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.2);
+        border-color: #fff;
+    }
+
+    .widget-icon {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #fdfbf7 0%, #f3f0e8 100%);
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        box-shadow: inset 0 2px 4px rgba(255,255,255,0.8), 0 2px 6px rgba(0,0,0,0.05);
+        border: 1px solid rgba(0,0,0,0.03);
+    }
+
+    .widget-content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 2px;
+        text-align: center;
+    }
+
+    .widget-title {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        color: #1e293b;
+        letter-spacing: -0.01em;
+    }
+
+    .widget-subtitle {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 12px;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    .widget-arrow {
+        color: #cbd5e1;
+        transition: transform 0.3s ease, color 0.3s ease;
+    }
+
+    .support-widget:hover .widget-arrow {
+        color: #6366f1; /* Indigo 500 */
+        transform: translateX(4px);
+    }
+
+    /* Modal Styles */
     .modal-overlay {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.3);
+        background: rgba(0, 0, 0, 0.4);
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
         display: flex;
@@ -177,88 +234,100 @@
 
     .modal-container {
         background: var(--modal-bg);
-        width: 380px; /* Increased width */
+        width: 380px;
         max-width: 90%;
-        border-radius: 16px;
-        padding: 28px; /* Increased padding */
-        box-shadow: var(--shadow-soft);
+        border-radius: 24px;
+        padding: 32px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         position: relative;
-        transform: scale(0.95);
-        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        transform: scale(0.95) translateY(10px);
+        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         text-align: center;
         font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    .modal-overlay.show .modal-container { transform: scale(1); }
+    .modal-overlay.show .modal-container { transform: scale(1) translateY(0); }
 
     .modal-close-btn {
         position: absolute;
-        top: 12px;
-        right: 12px;
-        background: transparent;
+        top: 16px;
+        right: 16px;
+        background: #f8fafc;
         border: none;
-        font-size: 24px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        font-size: 20px;
         color: var(--text-sub);
         cursor: pointer;
         line-height: 1;
-        padding: 4px;
-        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
     }
-    .modal-close-btn:hover { background: #f0f0f0; color: var(--text-main); }
+    .modal-close-btn:hover { background: #e2e8f0; color: var(--text-main); transform: rotate(90deg); }
 
-    .modal-header h3 { margin: 0 0 8px 0; font-size: 20px; color: var(--text-main); font-weight: 700; }
+    .modal-header h3 { margin: 0 0 8px 0; font-size: 22px; color: var(--text-main); font-weight: 800; letter-spacing: -0.02em; }
     .modal-header p { margin: 0 0 24px 0; font-size: 14px; color: var(--text-sub); line-height: 1.5; }
 
     .payment-tabs {
         display: flex;
-        background: #f7f7f5;
+        background: #f1f5f9;
         padding: 4px;
-        border-radius: 8px;
+        border-radius: 12px;
         margin-bottom: 24px;
     }
     .tab-btn {
         flex: 1;
         border: none;
         background: transparent;
-        padding: 10px;
+        padding: 12px;
         font-size: 14px;
-        font-weight: 500;
-        color: var(--text-sub);
-        border-radius: 6px;
+        font-weight: 600;
+        color: #64748b;
+        border-radius: 10px;
         cursor: pointer;
         transition: all 0.2s ease;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 6px;
+        gap: 8px;
     }
-    .tab-btn.active { background: #fff; color: var(--text-main); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .tab-btn:hover { color: #334155; }
+    .tab-btn.active { background: #fff; color: #0f172a; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
 
-    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; opacity: 0.5; }
-    .active .wechat-dot { background-color: var(--wechat-green); opacity: 1; }
-    .active .alipay-dot { background-color: var(--alipay-blue); opacity: 1; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; opacity: 0.5; transition: opacity 0.2s; }
+    .active .dot { opacity: 1; }
+    .wechat-dot { background-color: var(--wechat-green); }
+    .alipay-dot { background-color: var(--alipay-blue); }
 
     .qr-content-wrapper { min-height: 260px; }
-    .qr-panel { display: none; animation: fadeIn 0.3s ease; }
+    .qr-panel { display: none; animation: fadeIn 0.4s ease; }
     .qr-panel.active { display: block; }
     .qr-frame {
-        width: 240px; /* Increased QR size */
+        width: 240px;
         height: 240px;
         margin: 0 auto;
-        border-radius: 8px;
+        border-radius: 16px;
         overflow: hidden;
-        border: 1px solid #f0f0f0;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        padding: 8px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
     }
-    .qr-frame img { width: 100%; height: 100%; object-fit: cover; }
-    .qr-tip { font-size: 13px; color: var(--text-sub); margin-top: 12px; font-weight: 500; }
+    .qr-frame img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+    .qr-tip { font-size: 13px; color: #94a3b8; margin-top: 16px; font-weight: 500; }
 
-    .modal-footer { margin-top: 24px; border-top: 1px solid #f0f0f0; padding-top: 16px; }
-    .modal-footer p { font-size: 13px; color: var(--text-sub); margin: 0; }
+    .modal-footer { margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 20px; }
+    .modal-footer p { font-size: 13px; color: #64748b; margin: 0; font-weight: 500; }
 
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
 
     @media (max-width: 480px) {
-        .academic-float-btn { bottom: 20px; right: 20px; padding: 10px 18px; }
-        .academic-float-btn .text { font-size: 14px; }
+        .support-widget { bottom: 20px; right: 20px; padding: 12px 16px; max-width: auto; }
+        .widget-icon { width: 40px; height: 40px; font-size: 20px; }
+        .widget-title { font-size: 14px; }
+        .widget-subtitle { display: none; }
     }
     </style>
 
