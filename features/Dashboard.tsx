@@ -1,17 +1,27 @@
-import React from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers } from 'lucide-react';
+import React, { useState } from 'react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers, Timer, MessageCircle, X, Heart } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
+  const [showFeedback, setShowFeedback] = useState(false);
+
   // ==========================================
   // 👇 在这里修改您的座右铭
   // ==========================================
   const MOTTO = "财富是对认知的奖赏，而不是对勤奋的补偿。";
 
   const tools = [
+    {
+      id: 'lab_utils',
+      title: '实验室小工具',
+      desc: '多通道计时器、多组计数器、离心机转速(RPM/RCF)换算及常用单位换算助手。',
+      icon: <Timer size={32} className="text-teal-600" />,
+      color: 'border-teal-200 hover:border-teal-500',
+      active: true
+    },
     {
       id: 'qpcr',
       title: 'qPCR 相对定量分析',
@@ -132,6 +142,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       color: 'border-pink-200 hover:border-pink-500',
       active: true
     },
+    {
+      id: 'feedback',
+      title: '意见反馈',
+      desc: '与开发者交流，提交 Bug 或新功能建议。点击查看联系方式。',
+      icon: <MessageCircle size={32} className="text-rose-500" />,
+      color: 'border-rose-200 hover:border-rose-500',
+      active: true,
+      action: () => setShowFeedback(true)
+    },
   ];
 
   return (
@@ -159,7 +178,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
         {tools.map((tool) => (
           <div
             key={tool.id}
-            onClick={() => tool.active && onSelectTool(tool.id)}
+            onClick={() => {
+                if (tool.action) {
+                    tool.action();
+                } else if (tool.active) {
+                    onSelectTool(tool.id);
+                }
+            }}
             className={`
               relative bg-white rounded-2xl p-6 border-2 transition-all duration-300 shadow-sm
               ${tool.active 
@@ -182,6 +207,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
           </div>
         ))}
       </div>
+
+      {/* Feedback Modal */}
+      {showFeedback && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) setShowFeedback(false); }}>
+            <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-8 relative border border-slate-100 text-center transform transition-all scale-100">
+                <button 
+                    onClick={() => setShowFeedback(false)} 
+                    className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-full hover:bg-slate-50"
+                >
+                    <X size={20} />
+                </button>
+                
+                <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-rose-50/50">
+                    <Heart size={32} className="text-rose-500 fill-rose-500" />
+                </div>
+                
+                <h3 className="text-xl font-bold text-slate-800 mb-3">意见反馈</h3>
+                
+                <div className="text-slate-600 leading-relaxed mb-8">
+                    <p className="mb-4">感谢您使用 SciTools Hub！<br/>如果您有任何建议、Bug 反馈或新功能需求。</p>
+                    <div className="bg-rose-50 border border-rose-100 rounded-xl p-4">
+                        <p className="text-sm text-slate-500 mb-1">您可以在小红书搜索</p>
+                        <p className="text-lg font-bold text-rose-600">@薄荷狸</p>
+                        <p className="text-sm text-slate-500 mt-1">与我直接交流</p>
+                    </div>
+                </div>
+
+                <button 
+                    onClick={() => setShowFeedback(false)} 
+                    className="w-full bg-slate-800 text-white px-6 py-3 rounded-xl font-medium hover:bg-slate-900 transition-colors shadow-lg shadow-slate-200"
+                >
+                    我知道了
+                </button>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
