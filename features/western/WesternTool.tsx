@@ -499,9 +499,13 @@ export const WesternTool: React.FC = () => {
       imageCacheRef.current.delete(id);
   };
 
+  const getNextId = () => {
+    const numericIds = samples.map(s => parseInt(s.id, 10)).filter(n => !isNaN(n));
+    return numericIds.length > 0 ? Math.max(...numericIds) + 1 : Date.now();
+  };
+
   const addSample = () => {
-    const numericIds = samples.map(s => parseInt(String(s.id), 10)).filter(n => !isNaN(n));
-    const nextId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : Date.now();
+    const nextId = getNextId();
     
     const newSample: WbSample = { 
         id: nextId.toString(), 
@@ -513,8 +517,7 @@ export const WesternTool: React.FC = () => {
   };
 
   const duplicateSample = (sample: WbSample) => {
-      const numericIds = samples.map(s => parseInt(String(s.id), 10)).filter(n => !isNaN(n));
-      const nextId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : Date.now();
+      const nextId = getNextId();
       
       const newSample = { ...sample, id: nextId.toString(), name: `${sample.name} Copy`, targetRoi: undefined, refRoi: undefined };
       updateSamples([...samples, newSample]);

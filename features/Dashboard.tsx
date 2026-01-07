@@ -230,7 +230,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
                     <div className="bg-rose-50 border border-rose-100 rounded-xl p-4">
                         <p className="text-sm text-slate-500 mb-1">您可以在小红书搜索</p>
                         <p className="text-lg font-bold text-rose-600">@薄荷狸</p>
-                        <p className="text-sm text-slate-500 mt-1">与我直接交流</p>
+                        <p className="text-xs text-rose-400 mt-0.5">ID: 276397762</p>
+                        <p className="text-sm text-slate-500 mt-2">与我直接交流</p>
                     </div>
                 </div>
 
