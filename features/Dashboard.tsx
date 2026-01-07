@@ -11,7 +11,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
   // ==========================================
   // 👇 在这里修改您的座右铭
   // ==========================================
-  const MOTTO = "财富是对认知的奖赏，而不是对勤奋的补偿。";
+  const MOTTO = "小小怪下士，你要知道人生的容错率超乎你的想象。";
 
   const tools = [
     {
