@@ -456,7 +456,7 @@ export const WesternTool: React.FC = () => {
 
     for (let i = 0; i < files.length; i++) {
         // Use shared image utils
-        const file = files.item(i);
+        const file = files[i];
         if (file) {
             const src = await processImageFile(file);
             if (src) {
@@ -500,20 +500,20 @@ export const WesternTool: React.FC = () => {
   };
 
   const addSample = () => {
-    const numericIds = samples.map(s => parseInt(s.id, 10)).filter(n => !isNaN(n));
+    const numericIds = samples.map(s => parseInt(String(s.id), 10)).filter(n => !isNaN(n));
     const nextId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : Date.now();
     
     const newSample: WbSample = { 
         id: nextId.toString(), 
         name: `Sample ${samples.length + 1}`, 
-        group: 'Group 1',
+        group: 'Group 1', 
         isControl: false 
     };
     updateSamples([...samples, newSample]);
   };
 
   const duplicateSample = (sample: WbSample) => {
-      const numericIds = samples.map(s => parseInt(s.id, 10)).filter(n => !isNaN(n));
+      const numericIds = samples.map(s => parseInt(String(s.id), 10)).filter(n => !isNaN(n));
       const nextId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : Date.now();
       
       const newSample = { ...sample, id: nextId.toString(), name: `${sample.name} Copy`, targetRoi: undefined, refRoi: undefined };

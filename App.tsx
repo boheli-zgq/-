@@ -14,10 +14,11 @@ import { ColonyTool } from './features/colony/ColonyTool';
 import { CellPlatingTool } from './features/cell_plating/CellPlatingTool';
 import { TransfectionTool } from './features/transfection/TransfectionTool';
 import { IhcTool } from './features/ihc/IhcTool';
+import { AnimalExperimentTool } from './features/animal/AnimalExperimentTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc' | 'animal_design'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -66,6 +67,9 @@ function App() {
       )}
       {currentView === 'ihc' && (
         <IhcTool />
+      )}
+      {currentView === 'animal_design' && (
+        <AnimalExperimentTool />
       )}
 
       {/* Welcome Modal */}
