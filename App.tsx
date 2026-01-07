@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './features/Dashboard';
 import { QpcrTool } from './features/qpcr/QpcrTool';
+import { QpcrLayoutTool } from './features/qpcr_layout/QpcrLayoutTool';
 import { MolarityTool } from './features/molarity/MolarityTool';
 import { WesternTool } from './features/western/WesternTool';
 import { BcaTool } from './features/bca/BcaTool';
@@ -16,7 +17,7 @@ import { IhcTool } from './features/ihc/IhcTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -29,6 +30,9 @@ function App() {
       )}
       {currentView === 'qpcr' && (
         <QpcrTool />
+      )}
+      {currentView === 'qpcr_layout' && (
+        <QpcrLayoutTool />
       )}
       {currentView === 'molarity' && (
         <MolarityTool />

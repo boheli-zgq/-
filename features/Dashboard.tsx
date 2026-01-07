@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2 } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -18,6 +18,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '基于 2^-ΔΔCt 方法，自动生成柱状图与统计结果。支持从 Excel/Word 直接复制数据。',
       icon: <Dna size={32} className="text-science-600" />,
       color: 'border-science-200 hover:border-science-500',
+      active: true
+    },
+    {
+      id: 'qpcr_layout',
+      title: 'qPCR 加样排布设计',
+      desc: '可视化设计 96/384 孔板加样布局。自动排列样本与基因，支持导出加样表。',
+      icon: <Table2 size={32} className="text-blue-500" />,
+      color: 'border-blue-200 hover:border-blue-500',
       active: true
     },
     {

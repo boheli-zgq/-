@@ -500,8 +500,7 @@ export const WesternTool: React.FC = () => {
   };
 
   const addSample = () => {
-    // Explicitly convert s.id to string before parseInt to avoid "unknown not assignable to string" error
-    const numericIds = samples.map(s => parseInt(String(s.id))).filter(n => !isNaN(n));
+    const numericIds = samples.map(s => parseInt(s.id, 10)).filter(n => !isNaN(n));
     const nextId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : Date.now();
     
     const newSample: WbSample = { 
@@ -514,8 +513,7 @@ export const WesternTool: React.FC = () => {
   };
 
   const duplicateSample = (sample: WbSample) => {
-      // Explicitly convert s.id to string before parseInt to avoid "unknown not assignable to string" error
-      const numericIds = samples.map(s => parseInt(String(s.id))).filter(n => !isNaN(n));
+      const numericIds = samples.map(s => parseInt(s.id, 10)).filter(n => !isNaN(n));
       const nextId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : Date.now();
       
       const newSample = { ...sample, id: nextId.toString(), name: `${sample.name} Copy`, targetRoi: undefined, refRoi: undefined };
