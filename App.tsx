@@ -17,10 +17,11 @@ import { IhcTool } from './features/ihc/IhcTool';
 import { AnimalExperimentTool } from './features/animal/AnimalExperimentTool';
 import { WesternDesignTool } from './features/western_design/WesternDesignTool';
 import { LabUtilitiesTool } from './features/lab_utilities/LabUtilitiesTool';
+import { AngiogenesisTool } from './features/angiogenesis/AngiogenesisTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc' | 'animal_design' | 'western_design' | 'lab_utils'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc' | 'animal_design' | 'western_design' | 'lab_utils' | 'angiogenesis'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -78,6 +79,9 @@ function App() {
       )}
       {currentView === 'lab_utils' && (
         <LabUtilitiesTool />
+      )}
+      {currentView === 'angiogenesis' && (
+        <AngiogenesisTool />
       )}
 
       {/* Welcome Modal */}

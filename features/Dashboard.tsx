@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers, Timer, MessageCircle, X, Heart } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers, Timer, MessageCircle, X, Heart, Network } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -68,6 +68,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '基于颜色解卷积算法(H&E DAB)，自动计算阳性面积占比、平均光密度及 H-Score。',
       icon: <Palette size={32} className="text-amber-600" />,
       color: 'border-amber-200 hover:border-amber-500',
+      active: true
+    },
+    {
+      id: 'angiogenesis',
+      title: '血管生成 (Tube Formation)',
+      desc: '自动识别血管网络，骨架化计算总管长、节点数 (Junctions) 及成环数 (Meshes)。',
+      icon: <Network size={32} className="text-red-500" />,
+      color: 'border-red-200 hover:border-red-500',
       active: true
     },
     {

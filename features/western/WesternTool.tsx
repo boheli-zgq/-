@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Upload, Plus, Trash2, Maximize, Check, BarChart3, AlertCircle, RotateCcw, Activity, Image as ImageIcon, X, Download, Undo, Redo, Copy, Merge, BoxSelect, ScanLine, Crop, MousePointer2, Sliders, CheckSquare } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ErrorBar, Cell } from 'recharts';
 import { processImageFile } from '../../services/imageUtils';
@@ -83,7 +83,7 @@ const calculateDensityFromImage = (
         totalDensity += density;
       }
       return totalDensity;
-  } catch (e: unknown) {
+  } catch (e: any) {
       console.warn("Error calculating density (ROI likely out of bounds)", e);
       return 0;
   }
@@ -460,15 +460,16 @@ export const WesternTool: React.FC = () => {
         if (file) {
             try {
                 const src = await processImageFile(file);
-                if (src) {
+                if (typeof src === 'string') {
                     newImages.push({
                         id: Math.random().toString(36).substring(2, 11),
-                        name: String(file.name),
+                        name: file.name,
                         src: src
                     });
                 }
-            } catch (error) {
-                console.error("Error processing file", error);
+            } catch (error: any) {
+                const msg = error instanceof Error ? error.message : String(error);
+                console.error("Error processing file", msg);
             }
         }
     }
