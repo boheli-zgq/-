@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers, Timer, MessageCircle, X, Heart, Network } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers, Timer, MessageCircle, X, Heart, Network, Combine, Grid } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -36,6 +36,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '可视化设计 96/384 孔板加样布局。自动排列样本与基因，支持导出加样表。',
       icon: <Table2 size={32} className="text-blue-500" />,
       color: 'border-blue-200 hover:border-blue-500',
+      active: true
+    },
+    {
+      id: 'venn',
+      title: '韦恩图 (Venn)',
+      desc: '支持 2-4 组数据的交集分析与可视化。自动计算各区域元素，支持导出结果。',
+      icon: <Combine size={32} className="text-emerald-500" />,
+      color: 'border-emerald-200 hover:border-emerald-500',
+      active: true
+    },
+    {
+      id: 'heatmap',
+      title: '热图绘制 (Heatmap)',
+      desc: '生成科研级基因表达热图。支持 Z-Score 归一化、多种配色方案及矢量图导出。',
+      icon: <Grid size={32} className="text-rose-500" />,
+      color: 'border-rose-200 hover:border-rose-500',
       active: true
     },
     {

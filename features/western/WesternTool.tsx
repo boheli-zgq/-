@@ -458,18 +458,14 @@ export const WesternTool: React.FC = () => {
         // Use shared image utils
         const file = files.item(i);
         if (file) {
-            try {
-                const src = await processImageFile(file);
-                if (typeof src === 'string') {
-                    newImages.push({
-                        id: Math.random().toString(36).substring(2, 11),
-                        name: file.name,
-                        src: src
-                    });
-                }
-            } catch (error: any) {
-                const msg = error instanceof Error ? error.message : String(error);
-                console.error("Error processing file", msg);
+            // processImageFile handles errors internally and returns null on failure
+            const src = await processImageFile(file);
+            if (typeof src === 'string') {
+                newImages.push({
+                    id: Math.random().toString(36).substring(2, 11),
+                    name: file.name,
+                    src: src
+                });
             }
         }
     }
