@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers, Timer, MessageCircle, X, Heart, Network, Combine, Grid } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers, Timer, MessageCircle, X, Heart, Network, Combine, Grid, AlignCenterVertical } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -60,6 +60,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '上传条带图片，手动框选目标蛋白与内参蛋白，自动计算相对灰度值并归一化。',
       icon: <Activity size={32} className="text-emerald-500" />,
       color: 'border-emerald-200 hover:border-emerald-500',
+      active: true
+    },
+    {
+      id: 'western_norm',
+      title: 'Western Blot 内参归一化',
+      desc: '根据内参灰度值，自动计算上样体积调整方案，确保下一次实验上样量一致。',
+      icon: <AlignCenterVertical size={32} className="text-cyan-600" />,
+      color: 'border-cyan-200 hover:border-cyan-500',
       active: true
     },
     {

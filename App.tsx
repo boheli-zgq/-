@@ -5,6 +5,7 @@ import { QpcrTool } from './features/qpcr/QpcrTool';
 import { QpcrLayoutTool } from './features/qpcr_layout/QpcrLayoutTool';
 import { MolarityTool } from './features/molarity/MolarityTool';
 import { WesternTool } from './features/western/WesternTool';
+import { WesternNormTool } from './features/western/WesternNormTool';
 import { BcaTool } from './features/bca/BcaTool';
 import { TranswellTool } from './features/transwell/TranswellTool';
 import { ScratchTool } from './features/scratch/ScratchTool';
@@ -23,7 +24,7 @@ import { HeatmapTool } from './features/heatmap/HeatmapTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc' | 'animal_design' | 'western_design' | 'lab_utils' | 'angiogenesis' | 'venn' | 'heatmap'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'western_norm' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc' | 'animal_design' | 'western_design' | 'lab_utils' | 'angiogenesis' | 'venn' | 'heatmap'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -45,6 +46,9 @@ function App() {
       )}
       {currentView === 'western' && (
         <WesternTool />
+      )}
+      {currentView === 'western_norm' && (
+        <WesternNormTool />
       )}
       {currentView === 'bca' && (
         <BcaTool />

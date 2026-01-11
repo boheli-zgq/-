@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Upload, Plus, Trash2, Maximize, Check, BarChart3, AlertCircle, RotateCcw, Activity, Image as ImageIcon, X, Download, Undo, Redo, Copy, Merge, BoxSelect, ScanLine, Crop, MousePointer2, Sliders, CheckSquare } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ErrorBar, Cell } from 'recharts';
+import { Upload, Plus, Trash2, Maximize, Check, BarChart3, AlertCircle, RotateCcw, Activity, Image as ImageIcon, X, Download, Undo, Redo, Copy, Merge, BoxSelect, ScanLine, Crop, MousePointer2, Sliders, CheckSquare, AlignCenterVertical, FlaskConical, Calculator, Info } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ErrorBar, Cell, Legend } from 'recharts';
 import { processImageFile } from '../../services/imageUtils';
 
 // --- Types ---
@@ -53,6 +53,8 @@ interface DragState {
   // For region selecting
   currentRect?: { x: number, y: number, w: number, h: number };
 }
+
+type NormStrategy = 'mean' | 'weakest' | 'strongest' | 'manual';
 
 // --- Helper Functions ---
 
@@ -123,6 +125,22 @@ export const WesternTool: React.FC = () => {
   // Canvas Interaction State
   const [dragState, setDragState] = useState<DragState>({ mode: 'none', startPos: { x: 0, y: 0 } });
   const [hoveredRoi, setHoveredRoi] = useState<{ sampleId: string; type: 'target' | 'ref'; handle?: string } | null>(null);
+
+  // Result View State
+  const [resultTab, setResultTab] = useState<'analysis' | 'normalization'>('analysis');
+  
+  // Normalization Settings
+  const [normConfig, setNormConfig] = useState<{
+      currentVol: number;
+      targetVol: number;
+      strategy: NormStrategy;
+      manualRefId: string | null;
+  }>({
+      currentVol: 10,
+      targetVol: 10,
+      strategy: 'mean',
+      manualRefId: null
+  });
 
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -841,6 +859,67 @@ export const WesternTool: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // --- Normalization Logic ---
+  
+  const normResults = useMemo(() => {
+      if (samples.length === 0) return null;
+      
+      // Calculate density per uL using current vol
+      const densities = samples.map(s => {
+          // Use Ref density as basis unless it's missing, then maybe target? Usually Ref.
+          const intensity = s.refDensity || 0;
+          return { ...s, densityPerVol: intensity / normConfig.currentVol, intensity };
+      });
+
+      // Determine Reference Basis
+      let targetDensity = 0;
+      if (normConfig.strategy === 'mean') {
+          targetDensity = densities.reduce((a,b) => a + b.densityPerVol, 0) / densities.length;
+      } else if (normConfig.strategy === 'weakest') {
+          targetDensity = Math.min(...densities.map(d => d.densityPerVol));
+      } else if (normConfig.strategy === 'strongest') {
+          targetDensity = Math.max(...densities.map(d => d.densityPerVol));
+      } else if (normConfig.strategy === 'manual' && normConfig.manualRefId) {
+          const ref = densities.find(d => d.id === normConfig.manualRefId);
+          if (ref) targetDensity = ref.densityPerVol;
+          else targetDensity = densities[0].densityPerVol;
+      } else {
+          targetDensity = densities[0].densityPerVol;
+      }
+
+      const targetTotalSignal = targetDensity * normConfig.targetVol;
+
+      // Calculate New Volumes
+      const calculations = densities.map(s => {
+          let newVol = 0;
+          if (s.densityPerVol > 0) {
+              newVol = targetTotalSignal / s.densityPerVol;
+          }
+          return {
+              ...s,
+              newVol,
+              ratio: s.densityPerVol / targetDensity // Relative strength
+          };
+      });
+
+      return { calculations, targetTotalSignal };
+  }, [samples, normConfig]);
+
+  const handleNormExport = () => {
+      if (!normResults) return;
+      let csv = "\uFEFFSample Name,Original Intensity (Ref),Signal Density (Int/uL),New Load Vol (uL)\n";
+      normResults.calculations.forEach(r => {
+          csv += `"${r.name}",${r.intensity},${r.densityPerVol.toFixed(2)},${r.newVol.toFixed(2)}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "Normalization_Plan.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
   const groupStats = useMemo(() => {
       const groups: Record<string, { totalExp: number; count: number; values: number[] }> = {};
       samples.forEach(s => {
@@ -1060,67 +1139,236 @@ export const WesternTool: React.FC = () => {
 
       {step === 3 && (
         <div className="space-y-8">
-            <div className="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                 <h3 className="text-lg font-bold text-slate-800">分析结果</h3>
-                 <div className="flex gap-2">
-                     <button onClick={handleExportCsv} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-2 text-sm font-medium shadow-md shadow-emerald-500/20 transition-all active:scale-95"><Download size={16} /> 导出 CSV</button>
-                     <button onClick={() => setStep(2)} className="px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors">调整选区</button>
-                     <button onClick={() => { setStep(1); setSamples([{ id: '1', name: 'Sample 1', group: 'Control', isControl: true }]); setWbImages([]); setActiveImageId(null); setHistory([]); }} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-medium flex items-center gap-2"><RotateCcw size={16} /> 重新开始</button>
+            {/* Result Header & Tabs */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                 <div className="flex items-center justify-between mb-4">
+                     <h3 className="text-lg font-bold text-slate-800">分析结果</h3>
+                     <div className="flex gap-2">
+                         <button onClick={() => setStep(2)} className="px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors">调整选区</button>
+                         <button onClick={() => { setStep(1); setSamples([{ id: '1', name: 'Sample 1', group: 'Control', isControl: true }]); setWbImages([]); setActiveImageId(null); setHistory([]); }} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-medium flex items-center gap-2"><RotateCcw size={16} /> 重新开始</button>
+                     </div>
+                 </div>
+                 
+                 <div className="flex p-1 bg-slate-100 rounded-lg">
+                     <button 
+                        onClick={() => setResultTab('analysis')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-md transition-all flex items-center justify-center gap-2 ${resultTab === 'analysis' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                     >
+                         <BarChart3 size={16} /> 相对表达量分析
+                     </button>
+                     <button 
+                        onClick={() => setResultTab('normalization')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-md transition-all flex items-center justify-center gap-2 ${resultTab === 'normalization' ? 'bg-white text-cyan-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                     >
+                         <AlignCenterVertical size={16} /> 下一次实验：内参归一化
+                     </button>
                  </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-8">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                    <h4 className="font-bold text-slate-700 mb-6 pl-2 border-l-4 border-emerald-500">分组相对表达量 (Mean ± SD)</h4>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                             <BarChart data={groupStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
-                                <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                <Bar dataKey="mean" fill="#10b981" radius={[6, 6, 0, 0]} name="Relative Expression">
-                                    <ErrorBar dataKey="error" width={4} strokeWidth={2} stroke="#064e3b" />
-                                    {groupStats.map((entry, index) => <Cell key={`cell-${index}`} fill={['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'][index % 4]} />)}
-                                </Bar>
-                             </BarChart>
-                        </ResponsiveContainer>
+            {/* TAB 1: Analysis */}
+            {resultTab === 'analysis' && (
+                <div className="grid md:grid-cols-2 gap-8 animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <div className="flex justify-between items-center mb-6 pl-2 border-l-4 border-emerald-500">
+                            <h4 className="font-bold text-slate-700">分组相对表达量 (Mean ± SD)</h4>
+                            <button onClick={handleExportCsv} className="text-xs bg-emerald-50 text-emerald-600 px-3 py-1 rounded hover:bg-emerald-100 flex items-center gap-1 transition-colors">
+                                <Download size={12} /> 导出数据
+                            </button>
+                        </div>
+                        <div className="h-[300px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={groupStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+                                    <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                    <Bar dataKey="mean" fill="#10b981" radius={[6, 6, 0, 0]} name="Relative Expression">
+                                        <ErrorBar dataKey="error" width={4} strokeWidth={2} stroke="#064e3b" />
+                                        {groupStats.map((entry, index) => <Cell key={`cell-${index}`} fill={['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'][index % 4]} />)}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
-                </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
-                    <h4 className="font-bold text-slate-700 mb-6 pl-2 border-l-4 border-blue-500">详细数据 (可编辑)</h4>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-500 font-medium">
-                                <tr>
-                                    <th className="px-3 py-2 rounded-l-lg">分组 / 样本</th>
-                                    <th className="px-3 py-2 text-right w-24">Raw (Target)</th>
-                                    <th className="px-3 py-2 text-right w-24">Raw (Ref)</th>
-                                    <th className="px-3 py-2 text-right rounded-r-lg">Rel. Exp.</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {samples.map(s => (
-                                    <tr key={s.id} className="hover:bg-slate-50">
-                                        <td className="px-3 py-3 font-medium text-slate-700">
-                                            <div className="text-xs text-slate-400">{s.group}</div>
-                                            {s.name} {s.isControl && <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1 rounded ml-1">Ctrl</span>}
-                                        </td>
-                                        <td className="px-3 py-2 text-right">
-                                            <input type="number" value={Math.round(s.targetDensity || 0)} onChange={(e) => handleDensityChange(s.id, 'target', e.target.value)} className="w-20 text-right px-2 py-1 border border-slate-200 rounded text-slate-600 font-mono focus:ring-2 focus:ring-emerald-500 outline-none text-xs" />
-                                        </td>
-                                        <td className="px-3 py-2 text-right">
-                                            <input type="number" value={Math.round(s.refDensity || 0)} onChange={(e) => handleDensityChange(s.id, 'ref', e.target.value)} className="w-20 text-right px-2 py-1 border border-slate-200 rounded text-slate-600 font-mono focus:ring-2 focus:ring-emerald-500 outline-none text-xs" />
-                                        </td>
-                                        <td className="px-3 py-3 text-right font-bold text-emerald-600 font-mono">{(s.relativeExpression || 0).toFixed(2)}</td>
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
+                        <h4 className="font-bold text-slate-700 mb-6 pl-2 border-l-4 border-blue-500">详细数据 (可编辑)</h4>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-500 font-medium">
+                                    <tr>
+                                        <th className="px-3 py-2 rounded-l-lg">分组 / 样本</th>
+                                        <th className="px-3 py-2 text-right w-24">Raw (Target)</th>
+                                        <th className="px-3 py-2 text-right w-24">Raw (Ref)</th>
+                                        <th className="px-3 py-2 text-right rounded-r-lg">Rel. Exp.</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {samples.map(s => (
+                                        <tr key={s.id} className="hover:bg-slate-50">
+                                            <td className="px-3 py-3 font-medium text-slate-700">
+                                                <div className="text-xs text-slate-400">{s.group}</div>
+                                                {s.name} {s.isControl && <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1 rounded ml-1">Ctrl</span>}
+                                            </td>
+                                            <td className="px-3 py-2 text-right">
+                                                <input type="number" value={Math.round(s.targetDensity || 0)} onChange={(e) => handleDensityChange(s.id, 'target', e.target.value)} className="w-20 text-right px-2 py-1 border border-slate-200 rounded text-slate-600 font-mono focus:ring-2 focus:ring-emerald-500 outline-none text-xs" />
+                                            </td>
+                                            <td className="px-3 py-2 text-right">
+                                                <input type="number" value={Math.round(s.refDensity || 0)} onChange={(e) => handleDensityChange(s.id, 'ref', e.target.value)} className="w-20 text-right px-2 py-1 border border-slate-200 rounded text-slate-600 font-mono focus:ring-2 focus:ring-emerald-500 outline-none text-xs" />
+                                            </td>
+                                            <td className="px-3 py-3 text-right font-bold text-emerald-600 font-mono">{(s.relativeExpression || 0).toFixed(2)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
+
+            {/* TAB 2: Normalization */}
+            {resultTab === 'normalization' && (
+                <div className="grid lg:grid-cols-12 gap-6 animate-fade-in">
+                    {/* LEFT: Settings */}
+                    <div className="lg:col-span-4 flex flex-col gap-6">
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-6">
+                            <h3 className="font-bold text-slate-700 flex items-center gap-2"><Calculator size={16}/> 归一化策略</h3>
+                            
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-2">本次实验上样体积 (Original Load Volume)</label>
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="number" 
+                                        value={normConfig.currentVol}
+                                        onChange={(e) => setNormConfig({...normConfig, currentVol: parseFloat(e.target.value) || 0})}
+                                        className="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-cyan-500 outline-none"
+                                    />
+                                    <span className="text-sm text-slate-600">μL</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                    生成当前条带图时所加的体积（假设所有孔一致）
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-2">下一次目标上样体积 (Target Volume)</label>
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="number" 
+                                        value={normConfig.targetVol}
+                                        onChange={(e) => setNormConfig({...normConfig, targetVol: parseFloat(e.target.value) || 0})}
+                                        className="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-cyan-500 outline-none"
+                                    />
+                                    <span className="text-sm text-slate-600">μL</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                    希望基准样本下一次跑胶时的体积
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-2">对齐基准 (Reference Basis)</label>
+                                <select 
+                                    value={normConfig.strategy} 
+                                    onChange={(e) => setNormConfig({...normConfig, strategy: e.target.value as NormStrategy})}
+                                    className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 outline-none"
+                                >
+                                    <option value="mean">所有样本平均值 (Mean)</option>
+                                    <option value="weakest">信号最弱的样本 (Weakest)</option>
+                                    <option value="strongest">信号最强的样本 (Strongest)</option>
+                                    <option value="manual">指定某个样本 (Manual)</option>
+                                </select>
+                            </div>
+
+                            {normConfig.strategy === 'manual' && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-2">选择基准样本</label>
+                                    <select 
+                                        value={normConfig.manualRefId || ''}
+                                        onChange={(e) => setNormConfig({...normConfig, manualRefId: e.target.value})}
+                                        className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-slate-50"
+                                    >
+                                        {samples.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} (Ref Int: {Math.round(s.refDensity || 0)})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="bg-blue-50 text-blue-800 text-xs p-4 rounded-xl flex gap-2 items-start border border-blue-100">
+                             <Info size={16} className="mt-0.5 shrink-0" />
+                             <p>
+                                <strong>原理说明：</strong> 系统会自动使用您在分析步骤中识别到的 <b>内参灰度值 (Ref Density)</b> 进行计算。<br/>
+                                公式：NextVol = (TargetRefTotal / RefDensityPerUL)
+                             </p>
+                        </div>
+                    </div>
+
+                    {/* RIGHT: Results Table */}
+                    <div className="lg:col-span-8 flex flex-col gap-6">
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                           <div className="flex justify-between items-center mb-4">
+                               <div>
+                                   <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                       <FlaskConical size={18} className="text-cyan-500" /> 调整方案
+                                   </h3>
+                               </div>
+                               <button onClick={handleNormExport} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
+                                   <Download size={14} /> 导出 CSV
+                               </button>
+                           </div>
+
+                           <div className="overflow-x-auto rounded-lg border border-slate-100">
+                               <table className="w-full text-sm text-left">
+                                   <thead className="bg-slate-50 text-slate-500 font-medium">
+                                       <tr>
+                                           <th className="px-4 py-3">样本名称</th>
+                                           <th className="px-4 py-3 text-right">内参灰度 (Raw)</th>
+                                           <th className="px-4 py-3 text-right">相对强度</th>
+                                           <th className="px-4 py-3 text-right text-cyan-700 bg-cyan-50/50">下一次上样体积 (μL)</th>
+                                       </tr>
+                                   </thead>
+                                   <tbody className="divide-y divide-slate-100">
+                                       {normResults?.calculations.map((row) => (
+                                           <tr key={row.id} className="hover:bg-slate-50">
+                                               <td className="px-4 py-2 font-medium text-slate-700">
+                                                   {row.name}
+                                               </td>
+                                               <td className="px-4 py-2 text-right text-slate-500">{Math.round(row.intensity)}</td>
+                                               <td className="px-4 py-2 text-right text-slate-500">{row.ratio.toFixed(2)}x</td>
+                                               <td className="px-4 py-2 text-right font-bold text-cyan-600 bg-cyan-50/30 text-lg">
+                                                   {row.newVol.toFixed(2)}
+                                               </td>
+                                           </tr>
+                                       ))}
+                                   </tbody>
+                               </table>
+                           </div>
+                       </div>
+                       
+                       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                           <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                               <BarChart3 size={18} className="text-blue-500" /> 效果预览 (理论)
+                           </h3>
+                           <div className="h-[250px] w-full">
+                               <ResponsiveContainer width="100%" height="100%">
+                                   <BarChart data={normResults?.calculations.map(c => ({name: c.name, original: c.intensity, normalized: normResults.targetTotalSignal}))} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                       <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                                       <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                                       <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 8 }} />
+                                       <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+                                       <Bar dataKey="original" name="原始内参总量" fill="#cbd5e1" radius={[4, 4, 0, 0]} barSize={20} />
+                                       <Bar dataKey="normalized" name="调整后内参总量" fill="#06b6d4" radius={[4, 4, 0, 0]} barSize={20} />
+                                   </BarChart>
+                               </ResponsiveContainer>
+                           </div>
+                       </div>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-start gap-3 text-sm text-amber-800">
                 <AlertCircle className="shrink-0 mt-0.5 text-amber-500" size={18} />
                 <p><strong>注意：</strong> 本工具计算各分组内样本的平均相对表达量和标准差(SD)。请确保每个生物学重复被分配到正确的分组名称下。</p>
