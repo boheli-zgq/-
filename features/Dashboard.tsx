@@ -11,7 +11,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
   // ==========================================
   // 👇 在这里修改您的座右铭
   // ==========================================
-  const MOTTO = "绵绵用力，久久为功。";
+  const MOTTO = "总是播种，常常期待，有时收获。";
 
   const tools = [
     {
