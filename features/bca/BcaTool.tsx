@@ -52,6 +52,8 @@ const calcStdev = (arr: number[]) => {
 // Linear: y = mx + b
 const fitLinear = (points: StandardPoint[]): RegressionResult | null => {
   const n = points.length;
+  if (n < 2) return null;
+
   let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
   points.forEach(p => { 
       const x = p.od; 
@@ -60,7 +62,7 @@ const fitLinear = (points: StandardPoint[]): RegressionResult | null => {
   });
   
   const denom = (n * sumX2 - sumX * sumX);
-  if (denom === 0) return null;
+  if (Math.abs(denom) < 1e-9) return null;
 
   const slope = (n * sumXY - sumX * sumY) / denom;
   const intercept = (sumY - slope * sumX) / n;
@@ -86,7 +88,7 @@ const fitQuadratic = (points: StandardPoint[]): RegressionResult | null => {
 
   let sX = 0, sX2 = 0, sX3 = 0, sX4 = 0, sY = 0, sXY = 0, sX2Y = 0;
   points.forEach(p => {
-    const x = p.od; const y = p.conc; // Swapped
+    const x = p.od; const y = p.conc; 
     sX += x; sX2 += x*x; sX3 += x*x*x; sX4 += x*x*x*x;
     sY += y; sXY += x*y; sX2Y += x*x*y;
   });
@@ -125,7 +127,7 @@ const fitQuadratic = (points: StandardPoint[]): RegressionResult | null => {
 
 // Power (Log-Log): y = A * x^B  => Conc = A * OD^B
 const fitPower = (points: StandardPoint[]): RegressionResult | null => {
-  // Filter out zeros
+  // Filter out zeros or negatives
   const validPoints = points.filter(p => p.conc > 0 && p.od > 0);
   if (validPoints.length < 2) return null;
 
@@ -148,17 +150,18 @@ const fitPower = (points: StandardPoint[]): RegressionResult | null => {
   const lnA = (sumLnY - B * sumLnX) / n;
   const A = Math.exp(lnA);
 
-  // R2 calculation on original scale (Y=Conc)
-  const meanY = points.reduce((a, b) => a + b.conc, 0) / points.length;
-  const ssTot = points.reduce((a, b) => a + Math.pow(b.conc - meanY, 2), 0);
-  const ssRes = points.reduce((a, b) => a + Math.pow(b.conc - (A * Math.pow(b.od, B)), 2), 0);
+  // R2 calculation on original scale (Y=Conc) using ALL points (including 0 if any, though model fails at 0)
+  // We use validPoints for R2 to be fair to the model domain
+  const meanY = validPoints.reduce((a, b) => a + b.conc, 0) / n;
+  const ssTot = validPoints.reduce((a, b) => a + Math.pow(b.conc - meanY, 2), 0);
+  const ssRes = validPoints.reduce((a, b) => a + Math.pow(b.conc - (A * Math.pow(b.od, B)), 2), 0);
   const r2 = ssTot !== 0 ? (1 - (ssRes / ssTot)) : 0;
 
   return {
     r2,
     equationStr: `Conc = ${A.toFixed(4)} * OD^${B.toFixed(4)}`,
-    fn: (x) => A * Math.pow(x, B),
-    predict: (x) => A * Math.pow(x, B)
+    fn: (x) => x > 0 ? A * Math.pow(x, B) : 0,
+    predict: (x) => x > 0 ? A * Math.pow(x, B) : 0
   };
 };
 
@@ -168,43 +171,37 @@ const fit4PL = (points: StandardPoint[]): RegressionResult | null => {
     if (points.length < 4) return null;
 
     // x=OD, y=Conc
-    
-    // Fixed Asymptotes Estimates (Min Conc and Max Conc)
-    // We assume data covers the range reasonably well
     const minConc = Math.min(...points.map(p => p.conc));
     const maxConc = Math.max(...points.map(p => p.conc));
     
-    // Slightly expand range to avoid Log(0)
-    const fixedA = minConc * 0.95; // Min asymptote (Conc at low OD)
-    const fixedD = maxConc * 1.05; // Max asymptote (Conc at high OD)
+    // Fixed Asymptotes Estimates
+    const fixedA = minConc * 0.95; // Min asymptote
+    const fixedD = maxConc * 1.05; // Max asymptote
 
-    // Linearization
-    // y = d + (a-d)/(1+(x/c)^b)
+    // Linearization to solve for b and c
     // (a-d)/(y-d) - 1 = (x/c)^b
-    // ln( (a-d)/(y-d) - 1 ) = b*ln(x) - b*ln(c)
-    // Y' = slope * X' + intercept
-    // Y' = ln term
-    // X' = ln(x) = ln(OD)
-    // slope = b
-    // intercept = -b*ln(c)
+    // let Y' = ln( (a-d)/(y-d) - 1 )
+    // let X' = ln(x)
+    // Y' = b*X' - b*ln(c)
+    // slope = b, intercept = -b*ln(c)
 
     const linearData = points.map(p => {
         const y = p.conc;
         const x = p.od;
-        
+        // Avoid division by zero or log of non-positive
+        if (x <= 0) return null;
+        if (y >= fixedD || y <= fixedA) return null; // Out of bounds for this estimation
+
         const numerator = fixedA - fixedD;
         const denominator = y - fixedD;
-        if (denominator === 0) return null;
-        
         const term = (numerator / denominator) - 1;
-        if (term <= 0 || x <= 0) return null;
+        if (term <= 0) return null;
 
         return { Xp: Math.log(x), Yp: Math.log(term) };
     }).filter(p => p !== null) as {Xp: number, Yp: number}[];
 
     if (linearData.length < 2) return null;
 
-    // Fit line
     let sLx = 0, sLy = 0, sLxLy = 0, sLx2 = 0;
     const count = linearData.length;
     linearData.forEach(p => { sLx += p.Xp; sLy += p.Yp; sLxLy += p.Xp*p.Yp; sLx2 += p.Xp*p.Xp; });
@@ -218,7 +215,7 @@ const fit4PL = (points: StandardPoint[]): RegressionResult | null => {
     const finalB = slope;
     const finalC = Math.exp(intercept / -finalB);
 
-    // Calculate R2 (Y=Conc)
+    // Calculate R2 (Y=Conc) on original points
     const meanY = points.reduce((acc, p) => acc + p.conc, 0) / points.length;
     const ssTot = points.reduce((acc, p) => acc + Math.pow(p.conc - meanY, 2), 0);
     const ssRes = points.reduce((acc, p) => {

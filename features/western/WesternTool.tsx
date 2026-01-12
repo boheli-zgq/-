@@ -475,8 +475,8 @@ export const WesternTool: React.FC = () => {
 
     for (let i = 0; i < files.length; i++) {
         // Use shared image utils
-        const file = files[i];
-        if (file instanceof File) {
+        const file = files.item(i);
+        if (file) {
             // processImageFile handles errors internally and returns null on failure
             const src = await processImageFile(file);
             if (src && typeof src === 'string') {
