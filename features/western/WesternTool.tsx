@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Upload, Plus, Trash2, Maximize, Check, BarChart3, AlertCircle, RotateCcw, Activity, Image as ImageIcon, X, Download, Undo, Redo, Copy, Merge, BoxSelect, ScanLine, Crop, MousePointer2, Sliders, CheckSquare, AlignCenterVertical, FlaskConical, Calculator, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ErrorBar, Cell, Legend } from 'recharts';
@@ -475,7 +476,7 @@ export const WesternTool: React.FC = () => {
     for (let i = 0; i < files.length; i++) {
         // Use shared image utils
         const file = files[i];
-        if (file) {
+        if (file instanceof File) {
             // processImageFile handles errors internally and returns null on failure
             const src = await processImageFile(file);
             if (src) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Pipette, Plus, Trash2, Calculator, Info, AlertCircle, Copy, CheckCircle2, Clipboard } from 'lucide-react';
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, ComposedChart } from 'recharts';
+import { Pipette, Calculator, Info, AlertCircle, Table2, CheckCircle2, AlertTriangle, ChevronRight, ChevronDown } from 'lucide-react';
+import { ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, Scatter, Legend } from 'recharts';
 
 // --- Types ---
 
@@ -8,6 +8,16 @@ interface StandardPoint {
   id: string;
   conc: number;
   od: number;
+}
+
+interface StandardGroup {
+  id: string;
+  conc: number;
+  ods: number[]; // Raw ODs
+  correctedMeanOD: number; // After blank subtraction
+  meanRawOD: number;
+  cv: number; // Coefficient of Variation %
+  isBlank: boolean;
 }
 
 interface Sample {
@@ -28,6 +38,13 @@ interface RegressionResult {
 }
 
 // --- Math Helpers ---
+
+const calcMean = (arr: number[]) => arr.length > 0 ? arr.reduce((a,b)=>a+b, 0) / arr.length : 0;
+const calcStdev = (arr: number[]) => {
+    if (arr.length < 2) return 0;
+    const mean = calcMean(arr);
+    return Math.sqrt(arr.reduce((a,b)=>a+Math.pow(b-mean, 2), 0) / (arr.length - 1));
+};
 
 // NOTE: All regressions now fit Conc = f(OD).
 // x = OD, y = Conc
@@ -52,7 +69,7 @@ const fitLinear = (points: StandardPoint[]): RegressionResult | null => {
   const meanY = sumY / n;
   const ssTot = points.reduce((a, b) => a + Math.pow(b.conc - meanY, 2), 0);
   const ssRes = points.reduce((a, b) => a + Math.pow(b.conc - (slope * b.od + intercept), 2), 0);
-  const r2 = 1 - (ssRes / ssTot);
+  const r2 = ssTot !== 0 ? (1 - (ssRes / ssTot)) : 0;
 
   return {
     r2,
@@ -96,7 +113,7 @@ const fitQuadratic = (points: StandardPoint[]): RegressionResult | null => {
   const meanY = sY / n;
   const ssTot = points.reduce((acc, p) => acc + Math.pow(p.conc - meanY, 2), 0);
   const ssRes = points.reduce((acc, p) => acc + Math.pow(p.conc - (a*p.od*p.od + b*p.od + c), 2), 0);
-  const r2 = 1 - (ssRes / ssTot);
+  const r2 = ssTot !== 0 ? (1 - (ssRes / ssTot)) : 0;
 
   return {
     r2,
@@ -135,7 +152,7 @@ const fitPower = (points: StandardPoint[]): RegressionResult | null => {
   const meanY = points.reduce((a, b) => a + b.conc, 0) / points.length;
   const ssTot = points.reduce((a, b) => a + Math.pow(b.conc - meanY, 2), 0);
   const ssRes = points.reduce((a, b) => a + Math.pow(b.conc - (A * Math.pow(b.od, B)), 2), 0);
-  const r2 = 1 - (ssRes / ssTot);
+  const r2 = ssTot !== 0 ? (1 - (ssRes / ssTot)) : 0;
 
   return {
     r2,
@@ -151,8 +168,6 @@ const fit4PL = (points: StandardPoint[]): RegressionResult | null => {
     if (points.length < 4) return null;
 
     // x=OD, y=Conc
-    // Sort by OD (x) to estimate asymptotes
-    const sorted = [...points].sort((a,b) => a.od - b.od);
     
     // Fixed Asymptotes Estimates (Min Conc and Max Conc)
     // We assume data covers the range reasonably well
@@ -177,9 +192,6 @@ const fit4PL = (points: StandardPoint[]): RegressionResult | null => {
         const y = p.conc;
         const x = p.od;
         
-        // Term inside log
-        // Note: if curve is increasing (a < d), and y is between a and d.
-        // (a-d) is negative. (y-d) is negative. ratio is positive.
         const numerator = fixedA - fixedD;
         const denominator = y - fixedD;
         if (denominator === 0) return null;
@@ -213,7 +225,7 @@ const fit4PL = (points: StandardPoint[]): RegressionResult | null => {
         const yPred = fixedD + (fixedA - fixedD) / (1 + Math.pow(p.od / finalC, finalB));
         return acc + Math.pow(p.conc - yPred, 2);
     }, 0);
-    const r2 = 1 - (ssRes / ssTot);
+    const r2 = ssTot !== 0 ? (1 - (ssRes / ssTot)) : 0;
 
     return {
         r2,
@@ -230,6 +242,7 @@ export const BcaTool: React.FC = () => {
   const [model, setModel] = useState<RegressionModel>('linear');
   const [subtractBlank, setSubtractBlank] = useState(true);
   const [standardsInput, setStandardsInput] = useState<string>("");
+  const [showCurveDetails, setShowCurveDetails] = useState(true);
 
   // Default Samples
   const [samples, setSamples] = useState<Sample[]>([
@@ -237,66 +250,107 @@ export const BcaTool: React.FC = () => {
     { id: 's2', name: 'Sample 2', od: 0.88, dilution: 5 },
   ]);
 
-  // Init default standard curve text
+  // Init default standard curve text (With Multi-Replicates)
   useEffect(() => {
-      const defaultStds = [
-        { conc: 0, od: 0.05 },
-        { conc: 0.125, od: 0.15 },
-        { conc: 0.25, od: 0.28 },
-        { conc: 0.5, od: 0.55 },
-        { conc: 1.0, od: 1.05 },
-        { conc: 2.0, od: 1.95 },
-      ];
-      setStandardsInput(defaultStds.map(s => `${s.conc}\t${s.od}`).join('\n'));
+      const defaultText = 
+`0\t0.05\t0.06
+0.125\t0.15\t0.14
+0.25\t0.28\t0.29
+0.5\t0.55\t0.53
+1.0\t1.05\t1.02
+2.0\t1.95\t1.98`;
+      setStandardsInput(defaultText);
   }, []);
 
   // --- Logic ---
   
-  // 1. Parse Standards from Text Area
-  const standards = useMemo<StandardPoint[]>(() => {
-      return standardsInput.trim().split('\n').map((line, idx) => {
-          const parts = line.trim().split(/[\t, ]+/); // Split by tab, comma or space
-          if (parts.length < 2) return null;
+  // 1. Parse Standards from Text Area (Support Replicates)
+  const { allPoints, groupedPoints } = useMemo(() => {
+      const all: StandardPoint[] = [];
+      const grouped: StandardGroup[] = [];
+
+      const lines = standardsInput.trim().split('\n');
+      
+      lines.forEach((line, idx) => {
+          // Split by any common delimiter
+          const parts = line.trim().split(/[\t, ]+/);
+          if (parts.length < 2) return; // Need at least Conc + 1 OD
+
           const conc = parseFloat(parts[0]);
-          const od = parseFloat(parts[1]);
-          if (isNaN(conc) || isNaN(od)) return null;
-          return { id: `std-${idx}`, conc, od };
-      }).filter(Boolean) as StandardPoint[];
+          if (isNaN(conc)) return;
+
+          const ods: number[] = [];
+          for(let i=1; i<parts.length; i++) {
+              const val = parseFloat(parts[i]);
+              if (!isNaN(val)) {
+                  ods.push(val);
+                  all.push({ id: `std-${idx}-${i}`, conc, od: val });
+              }
+          }
+
+          if (ods.length > 0) {
+              const meanRawOD = calcMean(ods);
+              const sd = calcStdev(ods);
+              const cv = meanRawOD > 0 ? (sd / meanRawOD) * 100 : 0;
+              
+              grouped.push({ 
+                  id: `group-${idx}`,
+                  conc, 
+                  ods, 
+                  meanRawOD, 
+                  correctedMeanOD: meanRawOD, // will update later
+                  cv,
+                  isBlank: conc === 0 
+              });
+          }
+      });
+
+      return { allPoints: all, groupedPoints: grouped };
   }, [standardsInput]);
 
   // 2. Process Standards (Blank Correction)
-  const processedStandards = useMemo(() => {
-    if (!subtractBlank) return standards;
+  const { processedPoints, finalGroups, blankOD } = useMemo(() => {
+    let blank = 0;
     
-    // Find the blank (conc === 0 or lowest conc)
-    const blankPoint = standards.find(s => s.conc === 0);
-    const blankOD = blankPoint ? blankPoint.od : 0;
+    if (subtractBlank && groupedPoints.length > 0) {
+        // Find the group with Conc === 0, or the lowest conc
+        const zeroGroup = groupedPoints.find(g => g.conc === 0) || groupedPoints[0];
+        blank = zeroGroup.meanRawOD;
+    }
 
-    return standards.map(s => ({
-      ...s,
-      od: Math.max(0, s.od - blankOD) // Ensure no negative OD
+    // Correct individual points (for regression)
+    const processed = allPoints.map(p => ({
+        ...p,
+        od: Math.max(0, p.od - (subtractBlank ? blank : 0))
     }));
-  }, [standards, subtractBlank]);
 
-  // 3. Perform Regression
+    // Correct Groups (for display)
+    const finalG = groupedPoints.map(g => ({
+        ...g,
+        correctedMeanOD: Math.max(0, g.meanRawOD - (subtractBlank ? blank : 0))
+    }));
+
+    return { processedPoints: processed, finalGroups: finalG, blankOD: blank };
+  }, [allPoints, groupedPoints, subtractBlank]);
+
+  // 3. Perform Regression (Using ALL replicate points for best fit)
   const regression = useMemo(() => {
+    if (processedPoints.length < 2) return null;
+    
     // x = OD, y = Conc
-    if (model === 'linear') return fitLinear(processedStandards);
-    if (model === 'quadratic') return fitQuadratic(processedStandards);
-    if (model === 'power') return fitPower(processedStandards);
-    if (model === '4pl') return fit4PL(processedStandards);
+    if (model === 'linear') return fitLinear(processedPoints);
+    if (model === 'quadratic') return fitQuadratic(processedPoints);
+    if (model === 'power') return fitPower(processedPoints);
+    if (model === '4pl') return fit4PL(processedPoints);
     return null;
-  }, [processedStandards, model]);
+  }, [processedPoints, model]);
 
   // 4. Process Samples
   const computedSamples = useMemo(() => {
     if (!regression) return samples;
     
-    const blankPoint = standards.find(s => s.conc === 0);
-    const blankOD = (subtractBlank && blankPoint) ? blankPoint.od : 0;
-
     return samples.map(s => {
-      const correctedOD = Math.max(0.0001, s.od - blankOD); // Avoid 0
+      const correctedOD = Math.max(0.0001, s.od - (subtractBlank ? blankOD : 0));
       
       // Calculate Conc directly from OD
       const rawConc = regression.fn(correctedOD);
@@ -308,7 +362,7 @@ export const BcaTool: React.FC = () => {
         conc: validConc * s.dilution
       };
     });
-  }, [samples, regression, subtractBlank, standards]);
+  }, [samples, regression, subtractBlank, blankOD]);
 
   // --- Handlers ---
   
@@ -375,10 +429,10 @@ export const BcaTool: React.FC = () => {
 
   // --- Chart Data ---
   const chartData = useMemo(() => {
-    if (!regression || processedStandards.length === 0) return { points: processedStandards, line: [] };
+    if (!regression || processedPoints.length === 0) return { points: processedPoints, line: [] };
     
-    const maxOD = Math.max(...processedStandards.map(s => s.od));
-    const minOD = Math.min(...processedStandards.map(s => s.od));
+    const maxOD = Math.max(...processedPoints.map(s => s.od));
+    const minOD = Math.min(...processedPoints.map(s => s.od));
     
     // Generate smooth curve points (X = OD, Y = Conc)
     const lineData = [];
@@ -394,8 +448,8 @@ export const BcaTool: React.FC = () => {
         lineData.push({ od: x, trend: regression.predict(x) }); // trend is Conc
     }
     
-    return { points: processedStandards, line: lineData };
-  }, [processedStandards, regression]);
+    return { points: processedPoints, line: lineData };
+  }, [processedPoints, regression]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
@@ -406,13 +460,15 @@ export const BcaTool: React.FC = () => {
            </div>
            <div>
                <h2 className="text-2xl font-bold text-slate-800">ELISA & BCA 蛋白定量分析</h2>
-               <p className="text-slate-500">支持多种拟合模型 (Linear, Quadratic, 4PL) 与自定义单位</p>
+               <p className="text-slate-500">支持多复孔录入、自动计算变异系数 (CV%) 及多种拟合模型</p>
            </div>
        </div>
 
        <div className="grid lg:grid-cols-12 gap-6">
            {/* LEFT: Configuration & Standards (4 cols) */}
            <div className="lg:col-span-4 space-y-6">
+               
+               {/* 1. Settings */}
                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
                    <div className="flex items-center justify-between mb-4">
                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
@@ -448,12 +504,6 @@ export const BcaTool: React.FC = () => {
                                <option value="power">Power (Allometric)</option>
                                <option value="4pl">4PL (4-Parameter Logistic)</option>
                            </select>
-                           <p className="text-[10px] text-slate-400 mt-1">
-                               {model === 'linear' && '适用于标准 BCA，线性关系。'}
-                               {model === 'quadratic' && '适用于轻微弯曲的标准曲线。'}
-                               {model === 'power' && '适用于简单的幂函数关系。'}
-                               {model === '4pl' && 'ELISA 常用 S 型曲线拟合。'}
-                           </p>
                        </div>
 
                        <div className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100">
@@ -463,10 +513,7 @@ export const BcaTool: React.FC = () => {
                        
                        {regression && (
                            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 space-y-1">
-                               <div className="text-xs text-blue-500 font-bold uppercase tracking-wide">拟合结果 (Y=Conc)</div>
-                               <div className="font-mono text-sm text-blue-800 font-bold">
-                                   R² = {regression.r2.toFixed(4)}
-                               </div>
+                               <div className="text-xs text-blue-500 font-bold uppercase tracking-wide">拟合结果 (R² = {regression.r2.toFixed(4)})</div>
                                <div className="font-mono text-[10px] text-blue-600 break-all">
                                    {regression.equationStr}
                                </div>
@@ -475,123 +522,197 @@ export const BcaTool: React.FC = () => {
                    </div>
                </div>
 
+               {/* 2. Standards Input */}
                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col h-[400px]">
                    <div className="flex items-center justify-between mb-2">
-                       <h3 className="font-bold text-slate-700">标准品数据 (Conc, OD)</h3>
-                       <div className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded">支持 Excel 粘贴</div>
+                       <h3 className="font-bold text-slate-700">标准品录入</h3>
+                       <div className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded">支持复孔</div>
+                   </div>
+                   <div className="text-xs text-slate-500 mb-2 p-2 bg-slate-50 rounded border border-slate-100">
+                       格式：第一列浓度，后续列为OD复孔 (空格或Tab分隔)
                    </div>
                    <textarea
-                       className="flex-1 w-full p-3 text-sm font-mono border border-slate-200 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none resize-none bg-slate-50"
-                       placeholder={`0\t0.05\n0.125\t0.15\n0.25\t0.28\n...`}
+                       className="flex-1 w-full p-3 text-sm font-mono border border-slate-200 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none resize-none bg-slate-50 whitespace-pre"
+                       placeholder={`0\t0.05\t0.06\n0.125\t0.15\t0.14\n...`}
                        value={standardsInput}
                        onChange={(e) => setStandardsInput(e.target.value)}
                    />
-                   <div className="mt-2 text-xs text-slate-400 flex items-start gap-1">
-                       <Info size={12} className="mt-0.5 shrink-0" />
-                       <p>格式：第一列浓度，第二列OD值。使用Tab或空格分隔。</p>
-                   </div>
                </div>
            </div>
 
            {/* MIDDLE/RIGHT: Chart & Samples (8 cols) */}
            <div className="lg:col-span-8 space-y-6">
-               {/* Chart */}
-               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-[350px]">
-                   <ResponsiveContainer width="100%" height="100%">
-                       <ComposedChart margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
-                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                           {/* X Axis is now OD */}
-                           <XAxis 
-                                dataKey="od" 
-                                type="number" 
-                                name="OD" 
-                                label={{ value: 'OD (Absorbance)', position: 'bottom', offset: 0, style: { fill: '#64748b', fontSize: 12 } }}
-                                domain={['auto', 'auto']}
-                           />
-                           {/* Y Axis is now Concentration */}
-                           <YAxis 
-                                type="number" 
-                                name="Concentration" 
-                                label={{ value: `Concentration (${unit})`, angle: -90, position: 'insideLeft', style: { fill: '#64748b', fontSize: 12 } }} 
-                           />
-                           <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                           <Scatter name="Standards" data={chartData.points} fill="#f97316" shape="circle" />
-                           <Line data={chartData.line} dataKey="trend" stroke="#3b82f6" strokeWidth={2} dot={false} activeDot={false} type="monotone" />
-                       </ComposedChart>
-                   </ResponsiveContainer>
+               
+               {/* 1. Chart & Stats */}
+               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                   <div className="flex items-center justify-between mb-4">
+                       <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                           <Table2 size={16}/> 标准曲线 & 统计 (Standard Curve Statistics)
+                       </h4>
+                       <button onClick={() => setShowCurveDetails(!showCurveDetails)} className="text-slate-400 hover:text-slate-600">
+                           {showCurveDetails ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                       </button>
+                   </div>
+                   
+                   <div className={`grid md:grid-cols-2 gap-6 transition-all ${showCurveDetails ? 'opacity-100' : 'hidden opacity-0 h-0'}`}>
+                        {/* Chart */}
+                        <div className="h-[280px] w-full border border-slate-100 rounded-lg p-2 bg-slate-50">
+                           <ResponsiveContainer width="100%" height="100%">
+                               <ComposedChart margin={{ top: 10, right: 20, bottom: 20, left: 10 }}>
+                                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                   <XAxis 
+                                        dataKey="od" 
+                                        type="number" 
+                                        name="OD" 
+                                        label={{ value: 'OD (Absorbance)', position: 'bottom', offset: 0, style: { fill: '#64748b', fontSize: 12 } }}
+                                        domain={['auto', 'auto']}
+                                   />
+                                   <YAxis 
+                                        type="number" 
+                                        name="Concentration" 
+                                        label={{ value: `Conc (${unit})`, angle: -90, position: 'insideLeft', style: { fill: '#64748b', fontSize: 12 } }}
+                                   />
+                                   <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ borderRadius: 8 }} />
+                                   <Legend wrapperStyle={{ fontSize: 12 }} />
+                                   
+                                   {/* Regression Line */}
+                                   <Line 
+                                        data={chartData.line} 
+                                        dataKey="trend" 
+                                        stroke="#f97316" 
+                                        strokeWidth={2} 
+                                        dot={false} 
+                                        name="Fit Curve" 
+                                        isAnimationActive={false}
+                                   />
+                                   
+                                   {/* Replicate Points */}
+                                   <Scatter 
+                                        data={chartData.points} 
+                                        dataKey="conc" 
+                                        fill="#3b82f6" 
+                                        name="Standard Points" 
+                                        shape="circle"
+                                   />
+                               </ComposedChart>
+                           </ResponsiveContainer>
+                       </div>
+
+                       {/* Stats Table */}
+                       <div className="overflow-y-auto max-h-[280px]">
+                           <table className="w-full text-xs text-left">
+                               <thead className="bg-slate-100 text-slate-500 font-medium sticky top-0">
+                                   <tr>
+                                       <th className="px-2 py-2">Conc</th>
+                                       <th className="px-2 py-2">Raw ODs</th>
+                                       <th className="px-2 py-2">Mean OD</th>
+                                       <th className="px-2 py-2 text-right">CV%</th>
+                                   </tr>
+                               </thead>
+                               <tbody className="divide-y divide-slate-100">
+                                   {finalGroups.map((g) => (
+                                       <tr key={g.id} className="hover:bg-slate-50">
+                                           <td className="px-2 py-2 font-bold text-slate-700">{g.conc}</td>
+                                           <td className="px-2 py-2 text-slate-500 font-mono">
+                                               {g.ods.map(o => o.toFixed(3)).join(', ')}
+                                           </td>
+                                           <td className="px-2 py-2 text-blue-600 font-medium">
+                                               {g.meanRawOD.toFixed(3)}
+                                           </td>
+                                           <td className={`px-2 py-2 text-right font-medium ${g.cv > 15 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                               {g.cv.toFixed(1)}%
+                                               {g.cv > 15 && <AlertCircle size={10} className="inline ml-1" />}
+                                           </td>
+                                       </tr>
+                                   ))}
+                               </tbody>
+                           </table>
+                           {finalGroups.length === 0 && (
+                               <div className="p-4 text-center text-slate-400">请输入标准品数据</div>
+                           )}
+                           <div className="text-[10px] text-slate-400 p-2 border-t border-slate-100 mt-2">
+                               * CV > 15% 建议检查复孔操作误差
+                           </div>
+                       </div>
+                   </div>
                </div>
 
-               {/* Samples Table */}
-               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                   <div className="flex items-center justify-between mb-4">
-                       <div>
-                           <h3 className="font-bold text-slate-700">未知样品 (Samples)</h3>
-                           <p className="text-xs text-slate-400 mt-1">支持粘贴 Excel 数据 (名称, OD, 稀释倍数)</p>
-                       </div>
+               {/* 2. Sample Calculation */}
+               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                   <div className="flex justify-between items-center mb-4">
+                       <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                           <Pipette size={18} className="text-blue-500" /> 样品计算
+                       </h3>
                        <div className="flex gap-2">
-                           <button onClick={addSample} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm font-medium transition-colors flex items-center gap-1">
-                               <Plus size={16} /> 添加行
+                           <button onClick={addSample} className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded text-xs font-bold transition-colors">添加样品</button>
+                           <button className="bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded text-xs transition-colors relative">
+                               粘贴数据 (Excel)
+                               <input 
+                                   type="text" 
+                                   className="absolute inset-0 opacity-0 cursor-pointer" 
+                                   onPaste={handlePasteSamples}
+                               />
                            </button>
                        </div>
                    </div>
 
-                   <div className="overflow-x-auto border rounded-lg border-slate-100" onPaste={handlePasteSamples}>
-                       <table className="w-full text-sm">
-                           <thead className="bg-slate-50 text-slate-500 font-medium">
+                   <div className="overflow-x-auto rounded-lg border border-slate-200">
+                       <table className="w-full text-sm text-left">
+                           <thead className="bg-slate-100 text-slate-500 font-medium">
                                <tr>
-                                   <th className="px-4 py-3 text-left">样品名称</th>
-                                   <th className="px-4 py-3 text-right w-24">OD 值</th>
-                                   <th className="px-4 py-3 text-right w-24">稀释倍数</th>
-                                   <th className="px-4 py-3 text-right w-32 bg-orange-50 text-orange-700">计算浓度 ({unit})</th>
-                                   <th className="px-2 py-3 w-10"></th>
+                                   <th className="px-4 py-3 w-40">Sample Name</th>
+                                   <th className="px-4 py-3 w-24">OD Value</th>
+                                   <th className="px-4 py-3 w-24">Dilution</th>
+                                   <th className="px-4 py-3 text-right">Conc ({unit})</th>
+                                   <th className="px-4 py-3 w-12"></th>
                                </tr>
                            </thead>
-                           <tbody className="divide-y divide-slate-100 bg-white">
-                               {computedSamples.map((s) => (
-                                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                           <tbody className="divide-y divide-slate-100">
+                               {computedSamples.map((sample) => (
+                                   <tr key={sample.id} className="hover:bg-slate-50">
                                        <td className="px-4 py-2">
                                            <input 
-                                             type="text" 
-                                             value={s.name} 
-                                             onChange={e => updateSample(s.id, 'name', e.target.value)}
-                                             className="w-full bg-transparent border-none focus:ring-0 text-slate-700 font-medium placeholder-slate-300"
-                                             placeholder="Sample Name"
+                                               type="text" 
+                                               value={sample.name} 
+                                               onChange={(e) => updateSample(sample.id, 'name', e.target.value)}
+                                               className="w-full bg-transparent outline-none border-b border-transparent focus:border-orange-300 text-slate-700 font-medium"
                                            />
                                        </td>
                                        <td className="px-4 py-2">
                                            <input 
-                                             type="number" 
-                                             value={s.od} 
-                                             onChange={e => updateSample(s.id, 'od', e.target.value)}
-                                             className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-right focus:border-orange-500 outline-none"
+                                               type="number" 
+                                               value={sample.od} 
+                                               onChange={(e) => updateSample(sample.id, 'od', e.target.value)}
+                                               className="w-full bg-transparent outline-none border-b border-transparent focus:border-orange-300 text-slate-600"
                                            />
                                        </td>
                                        <td className="px-4 py-2">
-                                            <input 
-                                             type="number" 
-                                             value={s.dilution} 
-                                             onChange={e => updateSample(s.id, 'dilution', e.target.value)}
-                                             className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-right focus:border-orange-500 outline-none"
+                                           <input 
+                                               type="number" 
+                                               value={sample.dilution} 
+                                               onChange={(e) => updateSample(sample.id, 'dilution', e.target.value)}
+                                               className="w-full bg-transparent outline-none border-b border-transparent focus:border-orange-300 text-slate-600"
                                            />
                                        </td>
-                                       <td className="px-4 py-2 text-right font-bold text-orange-600 bg-orange-50/30">
-                                           {s.conc !== undefined ? s.conc.toFixed(4) : '-'}
+                                       <td className="px-4 py-2 text-right font-bold text-orange-600 font-mono bg-orange-50/30">
+                                           {sample.conc?.toFixed(4)}
                                        </td>
-                                       <td className="px-2 py-2 text-center">
-                                            <button onClick={() => removeSample(s.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16} /></button>
+                                       <td className="px-4 py-2 text-center">
+                                           <button onClick={() => removeSample(sample.id)} className="text-slate-300 hover:text-red-500">
+                                               <Info size={14} className="sr-only" /> {/* Using Trash Icon usually */}
+                                               ×
+                                           </button>
                                        </td>
                                    </tr>
                                ))}
                            </tbody>
                        </table>
                        {computedSamples.length === 0 && (
-                           <div className="p-8 text-center text-slate-400 text-sm border-t border-slate-100 flex flex-col items-center gap-2">
-                               <Clipboard size={32} className="opacity-20" />
-                               <p>在此处粘贴 Excel 数据 (Ctrl+V)</p>
-                           </div>
+                           <div className="p-8 text-center text-slate-400">暂无样品数据</div>
                        )}
                    </div>
                </div>
+
            </div>
        </div>
     </div>
