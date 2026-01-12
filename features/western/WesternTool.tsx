@@ -474,11 +474,11 @@ export const WesternTool: React.FC = () => {
 
     for (let i = 0; i < files.length; i++) {
         // Use shared image utils
-        const file = files.item(i);
+        const file = files[i];
         if (file) {
             // processImageFile handles errors internally and returns null on failure
             const src = await processImageFile(file);
-            if (typeof src === 'string') {
+            if (src) {
                 newImages.push({
                     id: Math.random().toString(36).substring(2, 11),
                     name: file.name,
@@ -1288,91 +1288,61 @@ export const WesternTool: React.FC = () => {
                                         onChange={(e) => setNormConfig({...normConfig, manualRefId: e.target.value})}
                                         className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-slate-50"
                                     >
-                                        {samples.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name} (Ref Int: {Math.round(s.refDensity || 0)})</option>
+                                        {samples.map((s) => (
+                                            <option key={s.id} value={s.id}>{s.name} (Vol: {normConfig.currentVol}, Int: {Math.round(s.refDensity || 0)})</option>
                                         ))}
                                     </select>
                                 </div>
                             )}
                         </div>
-                        
-                        <div className="bg-blue-50 text-blue-800 text-xs p-4 rounded-xl flex gap-2 items-start border border-blue-100">
-                             <Info size={16} className="mt-0.5 shrink-0" />
-                             <p>
-                                <strong>原理说明：</strong> 系统会自动使用您在分析步骤中识别到的 <b>内参灰度值 (Ref Density)</b> 进行计算。<br/>
-                                公式：NextVol = (TargetRefTotal / RefDensityPerUL)
-                             </p>
-                        </div>
                     </div>
 
-                    {/* RIGHT: Results Table */}
+                    {/* RIGHT: Results */}
                     <div className="lg:col-span-8 flex flex-col gap-6">
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-                           <div className="flex justify-between items-center mb-4">
-                               <div>
-                                   <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                                       <FlaskConical size={18} className="text-cyan-500" /> 调整方案
-                                   </h3>
-                               </div>
-                               <button onClick={handleNormExport} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
-                                   <Download size={14} /> 导出 CSV
-                               </button>
-                           </div>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                    <FlaskConical size={18} className="text-cyan-500" /> 调整方案
+                                </h3>
+                                <button onClick={handleNormExport} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
+                                    <Download size={14} /> 导出 CSV
+                                </button>
+                            </div>
 
-                           <div className="overflow-x-auto rounded-lg border border-slate-100">
-                               <table className="w-full text-sm text-left">
-                                   <thead className="bg-slate-50 text-slate-500 font-medium">
-                                       <tr>
-                                           <th className="px-4 py-3">样本名称</th>
-                                           <th className="px-4 py-3 text-right">内参灰度 (Raw)</th>
-                                           <th className="px-4 py-3 text-right">相对强度</th>
-                                           <th className="px-4 py-3 text-right text-cyan-700 bg-cyan-50/50">下一次上样体积 (μL)</th>
-                                       </tr>
-                                   </thead>
-                                   <tbody className="divide-y divide-slate-100">
-                                       {normResults?.calculations.map((row) => (
-                                           <tr key={row.id} className="hover:bg-slate-50">
-                                               <td className="px-4 py-2 font-medium text-slate-700">
-                                                   {row.name}
-                                               </td>
-                                               <td className="px-4 py-2 text-right text-slate-500">{Math.round(row.intensity)}</td>
-                                               <td className="px-4 py-2 text-right text-slate-500">{row.ratio.toFixed(2)}x</td>
-                                               <td className="px-4 py-2 text-right font-bold text-cyan-600 bg-cyan-50/30 text-lg">
-                                                   {row.newVol.toFixed(2)}
-                                               </td>
-                                           </tr>
-                                       ))}
-                                   </tbody>
-                               </table>
-                           </div>
-                       </div>
-                       
-                       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-                           <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                               <BarChart3 size={18} className="text-blue-500" /> 效果预览 (理论)
-                           </h3>
-                           <div className="h-[250px] w-full">
-                               <ResponsiveContainer width="100%" height="100%">
-                                   <BarChart data={normResults?.calculations.map(c => ({name: c.name, original: c.intensity, normalized: normResults.targetTotalSignal}))} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                       <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                                       <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                                       <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 8 }} />
-                                       <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
-                                       <Bar dataKey="original" name="原始内参总量" fill="#cbd5e1" radius={[4, 4, 0, 0]} barSize={20} />
-                                       <Bar dataKey="normalized" name="调整后内参总量" fill="#06b6d4" radius={[4, 4, 0, 0]} barSize={20} />
-                                   </BarChart>
-                               </ResponsiveContainer>
-                           </div>
-                       </div>
+                            <div className="overflow-x-auto rounded-lg border border-slate-100">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-500 font-medium">
+                                        <tr>
+                                            <th className="px-4 py-3">样本名称</th>
+                                            <th className="px-4 py-3 text-right">原始灰度 (Ref)</th>
+                                            <th className="px-4 py-3 text-right">密度 (Int/uL)</th>
+                                            <th className="px-4 py-3 text-right text-cyan-700 bg-cyan-50/50">新上样体积 (μL)</th>
+                                            <th className="px-4 py-3 text-right">倍数变化</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {normResults?.calculations.map((row) => (
+                                            <tr key={row.id} className="hover:bg-slate-50">
+                                                <td className="px-4 py-2 font-medium text-slate-700">
+                                                    {row.name}
+                                                </td>
+                                                <td className="px-4 py-2 text-right text-slate-500">{Math.round(row.intensity)}</td>
+                                                <td className="px-4 py-2 text-right text-slate-500">{row.densityPerVol.toFixed(1)}</td>
+                                                <td className="px-4 py-2 text-right font-bold text-cyan-600 bg-cyan-50/30 text-lg">
+                                                    {row.newVol.toFixed(2)}
+                                                </td>
+                                                <td className="px-4 py-2 text-right text-xs font-mono text-slate-400">
+                                                    {normConfig.currentVol > 0 ? (row.newVol / normConfig.currentVol).toFixed(2) + 'x' : '-'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
-
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-start gap-3 text-sm text-amber-800">
-                <AlertCircle className="shrink-0 mt-0.5 text-amber-500" size={18} />
-                <p><strong>注意：</strong> 本工具计算各分组内样本的平均相对表达量和标准差(SD)。请确保每个生物学重复被分配到正确的分组名称下。</p>
-            </div>
         </div>
       )}
     </div>

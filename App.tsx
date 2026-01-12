@@ -21,10 +21,11 @@ import { LabUtilitiesTool } from './features/lab_utilities/LabUtilitiesTool';
 import { AngiogenesisTool } from './features/angiogenesis/AngiogenesisTool';
 import { VennTool } from './features/venn/VennTool';
 import { HeatmapTool } from './features/heatmap/HeatmapTool';
+import { ReagentTool } from './features/reagents/ReagentTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'western_norm' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc' | 'animal_design' | 'western_design' | 'lab_utils' | 'angiogenesis' | 'venn' | 'heatmap'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'western_norm' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc' | 'animal_design' | 'western_design' | 'lab_utils' | 'angiogenesis' | 'venn' | 'heatmap' | 'reagents'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -94,6 +95,9 @@ function App() {
       )}
       {currentView === 'heatmap' && (
         <HeatmapTool />
+      )}
+      {currentView === 'reagents' && (
+        <ReagentTool />
       )}
 
       {/* Welcome Modal */}

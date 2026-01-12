@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers, Timer, MessageCircle, X, Heart, Network, Combine, Grid, AlignCenterVertical } from 'lucide-react';
+import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers, Timer, MessageCircle, X, Heart, Network, Combine, Grid, AlignCenterVertical, BookOpen } from 'lucide-react';
 
 interface DashboardProps {
   onSelectTool: (toolId: string) => void;
@@ -20,6 +20,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '多通道计时器、多组计数器、离心机转速(RPM/RCF)换算及常用单位换算助手。',
       icon: <Timer size={32} className="text-teal-600" />,
       color: 'border-teal-200 hover:border-teal-500',
+      active: true
+    },
+    {
+      id: 'reagents',
+      title: '常用试剂配方库',
+      desc: '内置 PBS, TAE, LB 等常用试剂配方。支持输入目标体积，自动计算所需成分用量。',
+      icon: <BookOpen size={32} className="text-cyan-700" />,
+      color: 'border-cyan-200 hover:border-cyan-500',
       active: true
     },
     {
