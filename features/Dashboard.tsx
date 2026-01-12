@@ -12,7 +12,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
   // ==========================================
   // 👇 在这里修改您的座右铭
   // ==========================================
-  const MOTTO = "正确的开始，一点点的进步，持续的努力。";
+  const MOTTO = "如果你想拥有从未拥有过的东西，就需要去做从未做过的事情。";
 
   const tools = [
     {
