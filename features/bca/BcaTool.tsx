@@ -558,7 +558,7 @@ export const BcaTool: React.FC = () => {
                         {/* Chart */}
                         <div className="h-[280px] w-full border border-slate-100 rounded-lg p-2 bg-slate-50">
                            <ResponsiveContainer width="100%" height="100%">
-                               <ComposedChart margin={{ top: 10, right: 20, bottom: 20, left: 10 }}>
+                               <ComposedChart margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
                                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                    <XAxis 
                                         dataKey="od" 
@@ -573,7 +573,7 @@ export const BcaTool: React.FC = () => {
                                         label={{ value: `Conc (${unit})`, angle: -90, position: 'insideLeft', style: { fill: '#64748b', fontSize: 12 } }}
                                    />
                                    <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ borderRadius: 8 }} />
-                                   <Legend wrapperStyle={{ fontSize: 12 }} />
+                                   <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: 12 }} />
                                    
                                    {/* Regression Line */}
                                    <Line 

@@ -552,7 +552,7 @@ export const WesternTool: React.FC = () => {
     setSelectedSampleIds(newSet);
   };
 
-  const updateSampleField = (id: string, field: keyof WbSample, value: any) => {
+  const updateSampleField = <K extends keyof WbSample>(id: string, field: K, value: WbSample[K]) => {
     const newSamples = samples.map(s => s.id === id ? { ...s, [field]: value } : s);
     updateSamples(newSamples);
   };
