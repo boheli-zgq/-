@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Activity, Dna, FlaskConical, Calculator, Grid3x3, Pipette, Target, Ruler, Aperture, CircleDot, Disc, Biohazard, Quote, Palette, ScanFace, Table2, PawPrint, Layers, Timer, MessageCircle, X, Heart, Network, Combine, Grid, AlignCenterVertical, BookOpen } from 'lucide-react';
 
@@ -44,6 +45,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       desc: '可视化设计 96/384 孔板加样布局。自动排列样本与基因，支持导出加样表。',
       icon: <Table2 size={32} className="text-blue-500" />,
       color: 'border-blue-200 hover:border-blue-500',
+      active: true
+    },
+    {
+      id: 'bsr',
+      title: '爆发抑制比分析 (BSR)',
+      desc: '上传 EEG 脑电数据，自动识别爆发与抑制波段，计算爆发抑制比 (Burst-Suppression Ratio)。',
+      icon: <Activity size={32} className="text-purple-600" />,
+      color: 'border-purple-200 hover:border-purple-500',
       active: true
     },
     {

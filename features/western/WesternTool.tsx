@@ -478,13 +478,17 @@ export const WesternTool: React.FC = () => {
         const file = files.item(i);
         if (file) {
             // processImageFile handles errors internally and returns null on failure
-            const src = await processImageFile(file as File);
-            if (src && typeof src === 'string') {
-                newImages.push({
-                    id: Math.random().toString(36).substring(2, 11),
-                    name: file.name,
-                    src: src
-                });
+            try {
+                const src = await processImageFile(file);
+                if (src && typeof src === 'string') {
+                    newImages.push({
+                        id: Math.random().toString(36).substring(2, 11),
+                        name: file.name,
+                        src: src
+                    });
+                }
+            } catch (error: any) {
+                console.error("Failed to process image", error);
             }
         }
     }
