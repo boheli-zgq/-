@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Grid, Download, Upload, Sliders, RefreshCw, Palette, Info, Maximize2, Type } from 'lucide-react';
 
@@ -9,7 +10,7 @@ interface HeatmapData {
   matrix: number[][]; // Raw values
 }
 
-type ColorPalette = 'rwb' | 'gbr' | 'viridis' | 'magma' | 'plasma' | 'blue' | 'red';
+type ColorPalette = 'rwb' | 'gbr' | 'viridis' | 'magma' | 'plasma' | 'blue' | 'red' | 'rainbow' | 'bgyr';
 
 // --- Constants ---
 
@@ -21,6 +22,8 @@ const PALETTES: Record<ColorPalette, { name: string, colors: string[], type: 'di
   'plasma': { name: 'Plasma', colors: ['#0d0887', '#7e03a8', '#cc4778', '#f89540', '#f0f921'], type: 'sequential' },
   'blue': { name: 'Sequential Blue', colors: ['#f0f9ff', '#0284c7'], type: 'sequential' },
   'red': { name: 'Sequential Red', colors: ['#fef2f2', '#dc2626'], type: 'sequential' },
+  'rainbow': { name: 'Rainbow', colors: ['#7e22ce', '#3b82f6', '#06b6d4', '#22c55e', '#eab308', '#ef4444'], type: 'sequential' },
+  'bgyr': { name: 'Blue-Green-Yellow-Red', colors: ['#0000ff', '#00ff00', '#ffff00', '#ff0000'], type: 'diverging' },
 };
 
 const DEFAULT_DATA = `Gene\tCtrl_1\tCtrl_2\tCtrl_3\tTreat_1\tTreat_2\tTreat_3
@@ -91,9 +94,6 @@ const interpolateColor = (value: number, min: number, max: number, palette: stri
 
   if (palette.length === 2) {
       // Simple linear interpolation
-      // We need RGB parsing, simplistic implementation here
-      // For robustness, let's assume hex codes and do simple mapping or use libraries.
-      // Since we don't have d3/chroma, let's implement a basic hex lerp.
       return lerpColor(palette[0], palette[1], t);
   } else if (palette.length === 3) {
       // Diverging: 0 -> 0.5 -> 1
@@ -148,6 +148,10 @@ export const HeatmapTool: React.FC = () => {
   const [useZScore, setUseZScore] = useState(true);
   const [paletteKey, setPaletteKey] = useState<ColorPalette>('rwb');
   
+  // Scale Settings
+  const [customMin, setCustomMin] = useState<number | ''>('');
+  const [customMax, setCustomMax] = useState<number | ''>('');
+  
   // Visual Settings
   const [cellWidth, setCellWidth] = useState(30);
   const [cellHeight, setCellHeight] = useState(20);
@@ -173,8 +177,15 @@ export const HeatmapTool: React.FC = () => {
       return data.matrix;
   }, [data, useZScore]);
 
+  // Handle Z-Score Toggle (Reset custom ranges as they likely don't apply anymore)
+  const handleZScoreChange = (checked: boolean) => {
+      setUseZScore(checked);
+      setCustomMin('');
+      setCustomMax('');
+  };
+
   // Determine Range for Color Scale
-  const range = useMemo(() => {
+  const autoRange = useMemo(() => {
       if (processedMatrix.length === 0) return { min: 0, max: 0 };
       let min = Infinity;
       let max = -Infinity;
@@ -197,6 +208,12 @@ export const HeatmapTool: React.FC = () => {
       
       return { min, max };
   }, [processedMatrix, useZScore]);
+
+  // Effective Range (User override or Auto)
+  const range = useMemo(() => ({
+      min: customMin !== '' ? Number(customMin) : autoRange.min,
+      max: customMax !== '' ? Number(customMax) : autoRange.max
+  }), [autoRange, customMin, customMax]);
 
   // Handle Export
   const handleExportSvg = () => {
@@ -269,7 +286,7 @@ export const HeatmapTool: React.FC = () => {
                    <div className="flex items-center justify-between">
                        <span className="text-sm text-slate-600">标准化 (Row Z-Score)</span>
                        <label className="relative inline-flex items-center cursor-pointer">
-                           <input type="checkbox" checked={useZScore} onChange={e => setUseZScore(e.target.checked)} className="sr-only peer" />
+                           <input type="checkbox" checked={useZScore} onChange={e => handleZScoreChange(e.target.checked)} className="sr-only peer" />
                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
                        </label>
                    </div>
@@ -287,6 +304,33 @@ export const HeatmapTool: React.FC = () => {
                                    style={{ background: `linear-gradient(to right, ${p.colors.join(', ')})` }}
                                />
                            ))}
+                       </div>
+                   </div>
+
+                   {/* Scale Range */}
+                   <div>
+                       <label className="block text-xs font-bold text-slate-500 mb-2">标尺范围 (Scale Range)</label>
+                       <div className="grid grid-cols-2 gap-3">
+                           <div>
+                               <label className="block text-[10px] text-slate-400 mb-1">Min (Auto: {autoRange.min.toFixed(1)})</label>
+                               <input 
+                                   type="number" 
+                                   value={customMin} 
+                                   onChange={e => setCustomMin(e.target.value === '' ? '' : Number(e.target.value))} 
+                                   placeholder={autoRange.min.toFixed(2)}
+                                   className="w-full text-sm border border-slate-300 rounded px-2 py-1 focus:border-rose-500 outline-none" 
+                               />
+                           </div>
+                           <div>
+                               <label className="block text-[10px] text-slate-400 mb-1">Max (Auto: {autoRange.max.toFixed(1)})</label>
+                               <input 
+                                   type="number" 
+                                   value={customMax} 
+                                   onChange={e => setCustomMax(e.target.value === '' ? '' : Number(e.target.value))} 
+                                   placeholder={autoRange.max.toFixed(2)} 
+                                   className="w-full text-sm border border-slate-300 rounded px-2 py-1 focus:border-rose-500 outline-none" 
+                               />
+                           </div>
                        </div>
                    </div>
 

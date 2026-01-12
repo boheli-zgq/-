@@ -478,7 +478,7 @@ export const WesternTool: React.FC = () => {
         const file = files.item(i);
         if (file) {
             // processImageFile handles errors internally and returns null on failure
-            const src = await processImageFile(file);
+            const src = await processImageFile(file as File);
             if (src && typeof src === 'string') {
                 newImages.push({
                     id: Math.random().toString(36).substring(2, 11),
@@ -580,7 +580,7 @@ export const WesternTool: React.FC = () => {
     if (step !== 2 || !activeImageId || !canvasRef.current || !containerRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const img = imageCacheRef.current.get(activeImageId as string);
+    const img = imageCacheRef.current.get(activeImageId);
 
     if (!ctx || !img || !img.complete || img.naturalWidth === 0) return;
 
