@@ -631,7 +631,7 @@ export const BcaTool: React.FC = () => {
                                <div className="p-4 text-center text-slate-400">请输入标准品数据</div>
                            )}
                            <div className="text-[10px] text-slate-400 p-2 border-t border-slate-100 mt-2">
-                               * CV > 15% 建议检查复孔操作误差
+                               * CV &gt; 15% 建议检查复孔操作误差
                            </div>
                        </div>
                    </div>

@@ -300,7 +300,7 @@ export const WesternTool: React.FC = () => {
             const centerX = blob.x + blob.w / 2;
             const centerY = blob.y + blob.h / 2;
             const roi: Roi = {
-                imageId: currentImageId,
+                imageId: currentImageId!,
                 x: centerX - boxW / 2,
                 y: centerY - boxH / 2,
                 w: boxW,
@@ -328,7 +328,7 @@ export const WesternTool: React.FC = () => {
             const centerX = blob.x + blob.w / 2;
             const centerY = blob.y + blob.h / 2;
             const roi: Roi = {
-                imageId: currentImageId,
+                imageId: currentImageId!,
                 x: centerX - boxW / 2,
                 y: centerY - boxH / 2,
                 w: boxW,
@@ -479,7 +479,7 @@ export const WesternTool: React.FC = () => {
         if (file instanceof File) {
             // processImageFile handles errors internally and returns null on failure
             const src = await processImageFile(file);
-            if (src) {
+            if (src && typeof src === 'string') {
                 newImages.push({
                     id: Math.random().toString(36).substring(2, 11),
                     name: file.name,
@@ -580,7 +580,7 @@ export const WesternTool: React.FC = () => {
     if (step !== 2 || !activeImageId || !canvasRef.current || !containerRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const img = imageCacheRef.current.get(activeImageId);
+    const img = imageCacheRef.current.get(activeImageId as string);
 
     if (!ctx || !img || !img.complete || img.naturalWidth === 0) return;
 
