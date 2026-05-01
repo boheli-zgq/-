@@ -33,6 +33,7 @@ interface IFImage {
 interface AnalysisSettings {
   nucleiChannel: 'red' | 'green' | 'blue' | 'gray';
   nucleiThreshold: number; // 0-255
+  minNucleusArea: number; // to filter debris
   targetChannel: 'red' | 'green' | 'blue' | 'gray';
   cellRadius: number; // pixels to dilate
 }
@@ -118,7 +119,7 @@ const analyzeSingleCells = (
   }
 
   // Filter by min area
-  const MIN_AREA = 10;
+  const MIN_AREA = settings.minNucleusArea;
   const validLabels = new Map<number, number>();
   let validLabelCount = 0;
   for(let i=1; i<=currentLabel; i++) {
@@ -252,9 +253,12 @@ export const SingleCellIfTool: React.FC = () => {
   const [settings, setSettings] = useState<AnalysisSettings>({
     nucleiChannel: 'blue',
     nucleiThreshold: 50,
+    minNucleusArea: 20,
     targetChannel: 'green',
     cellRadius: 15
   });
+
+  const [maskOpacity, setMaskOpacity] = useState(0.5);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -385,11 +389,13 @@ export const SingleCellIfTool: React.FC = () => {
            const maskImg = new Image();
            maskImg.src = imgData.maskDataUrl;
            maskImg.onload = () => {
+               ctx.globalAlpha = maskOpacity;
                ctx.drawImage(maskImg, 0, 0);
+               ctx.globalAlpha = 1.0;
            };
         }
     };
-  }, [activeImageId, images]);
+  }, [activeImageId, images, maskOpacity]);
 
   const handleExportCsv = () => {
     let csv = "\uFEFFGroup,Image Name,Cell ID,Cell Area (px),Cell Mean Intensity\n";
@@ -517,7 +523,7 @@ export const SingleCellIfTool: React.FC = () => {
 
            <div className="lg:col-span-6 flex flex-col gap-4">
                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-3">
-                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
                        <div>
                            <div className="text-xs text-slate-500 mb-1">定位细胞通道 (如 DAPI)</div>
                            <select 
@@ -543,6 +549,16 @@ export const SingleCellIfTool: React.FC = () => {
                        </div>
 
                        <div>
+                           <div className="text-xs text-slate-500 mb-1 text-center">最小核面积 ({settings.minNucleusArea})</div>
+                           <input 
+                                type="range" min="0" max="500" 
+                                value={settings.minNucleusArea} 
+                                onChange={(e) => setSettings(s => ({ ...s, minNucleusArea: parseInt(e.target.value) }))}
+                                className="w-full h-2 mt-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                           />
+                       </div>
+
+                       <div>
                            <div className="text-xs text-slate-500 mb-1">分析目标通道 (如 Lysosensor)</div>
                            <select 
                                 value={settings.targetChannel} 
@@ -557,7 +573,7 @@ export const SingleCellIfTool: React.FC = () => {
                        </div>
                        
                        <div>
-                           <div className="text-xs text-slate-500 mb-1 text-center">细胞扩展半径 ({settings.cellRadius}px)</div>
+                           <div className="text-xs text-slate-500 mb-1 text-center">扩张半径 ({settings.cellRadius}px)</div>
                            <input 
                                 type="range" min="0" max="50" 
                                 value={settings.cellRadius} 
@@ -566,7 +582,16 @@ export const SingleCellIfTool: React.FC = () => {
                            />
                        </div>
                    </div>
-                   <div className="flex justify-end pt-2 border-t border-slate-100">
+                   <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                       <div className="flex items-center gap-2">
+                           <span className="text-xs text-slate-500">遮罩透明度:</span>
+                           <input 
+                                type="range" min="0" max="1" step="0.05"
+                                value={maskOpacity} 
+                                onChange={(e) => setMaskOpacity(parseFloat(e.target.value))}
+                                className="w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-slate-600"
+                           />
+                       </div>
                        <button onClick={analyzeActiveImage} disabled={!activeImageId || isProcessing} className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors">
                            重新计算当前图片
                        </button>
