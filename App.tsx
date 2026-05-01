@@ -24,10 +24,11 @@ import { VennTool } from './features/venn/VennTool';
 import { HeatmapTool } from './features/heatmap/HeatmapTool';
 import { ReagentTool } from './features/reagents/ReagentTool';
 import { BsrTool } from './features/eeg/BsrTool';
+import { SingleCellIfTool } from './features/single_cell_if/SingleCellIfTool';
 import { Sparkles, X } from 'lucide-react';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'western_norm' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc' | 'animal_design' | 'western_design' | 'lab_utils' | 'angiogenesis' | 'venn' | 'heatmap' | 'reagents' | 'bsr'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'qpcr' | 'qpcr_layout' | 'molarity' | 'western' | 'western_norm' | 'bca' | 'transwell' | 'scratch' | 'if_analysis' | 'single_cell_if' | 'edu' | 'colony' | 'cell_plating' | 'transfection' | 'ihc' | 'animal_design' | 'western_design' | 'lab_utils' | 'angiogenesis' | 'venn' | 'heatmap' | 'reagents' | 'bsr'>('dashboard');
   const [showWelcome, setShowWelcome] = useState(true);
 
   return (
@@ -64,6 +65,9 @@ function App() {
       )}
       {currentView === 'if_analysis' && (
         <ImmunofluorescenceTool />
+      )}
+      {currentView === 'single_cell_if' && (
+        <SingleCellIfTool />
       )}
       {currentView === 'edu' && (
         <EduTool />

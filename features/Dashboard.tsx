@@ -152,6 +152,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectTool }) => {
       active: true
     },
     {
+      id: 'single_cell_if',
+      title: '单细胞荧光强度分析',
+      desc: '基于核定位追踪，提取每一个细胞内的目标通道探针 (如 Lysosensor) 平均荧光强度并出图。',
+      icon: <Target size={32} className="text-emerald-500" />,
+      color: 'border-emerald-200 hover:border-emerald-500',
+      active: true
+    },
+    {
       id: 'edu',
       title: 'EdU 细胞增殖分析',
       desc: '自动识别 DAPI（总细胞）与 EdU（阳性细胞），计算细胞增殖率与细胞计数。',
